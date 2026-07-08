@@ -136,13 +136,18 @@ async function runPoll(trigger) {
       prized: rank.prized, idtourney: rank.idtourney, standings: rank.standings?.length, diag: rank._diag
     });
 
-    const idt = (cfg.idtourney && cfg.idtourney.trim()) || rank.idtourney || null;
-    // The lit countdown link only appears while the clock is running, so once we
-    // learn the id, remember it — otherwise the timer breaks between rounds (link
-    // gone) until the next clock start.
-    if (idt && !(cfg.idtourney && cfg.idtourney.trim())) {
-      await setConfig({ idtourney: String(idt) });
-      logger.info('config', 'remembered idtourney', { idtourney: idt });
+    // idtourney resolution, most-authoritative first:
+    //   1) the id detected on THIS tournament's page (only present while the clock runs)
+    //   2) a value learned earlier FOR THIS SAME tournament URL (survives between rounds)
+    //   3) the manual Options value (last resort)
+    // This prevents reusing a previous tournament's id after switching the target URL.
+    const { learnedId } = await chrome.storage.local.get('learnedId');
+    const manual = cfg.idtourney && cfg.idtourney.trim();
+    const learnedForThis = learnedId && learnedId.url === cfg.targetUrl ? learnedId.id : null;
+    const idt = rank.idtourney || learnedForThis || manual || null;
+    if (rank.idtourney && (!learnedId || learnedId.id !== rank.idtourney || learnedId.url !== cfg.targetUrl)) {
+      await chrome.storage.local.set({ learnedId: { url: cfg.targetUrl, id: rank.idtourney } });
+      logger.info('config', 'learned idtourney', { idtourney: rank.idtourney, url: cfg.targetUrl });
     }
 
     // 2) Current turn's boards (live matches). Best-effort; never blocks the poll.

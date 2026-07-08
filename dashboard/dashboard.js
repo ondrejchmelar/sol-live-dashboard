@@ -212,25 +212,21 @@ function renderStatic(){
   document.title=e.name+" — Corridor Dashboard";
 }
 
-// Show only one panel at a time: live matches while a round's clock is running,
-// otherwise (prepared / ended / between rounds / final) the standings.
+// Up to 3 match columns, but only add a column if each keeps >=15 boards.
+function matchColumns(n){ return Math.max(1, Math.min(3, Math.floor(n/15))); }
+
+// Standings are always visible (1 column); the matches panel appears whenever
+// there are matches, spanning as many columns as matchColumns() allows.
 function layoutPanels(){
-  const roundActive=!!(DATA.clock && DATA.clock.mode==="running") && (DATA.matches||[]).length>0;
-  // On very wide displays (4K), keep standings visible as a 3rd column beside the
-  // two match columns while a round is running; otherwise show one panel at a time.
-  const wide=window.matchMedia("(min-width:2048px)").matches;
+  const list=DATA.matches||[];
+  const hasMatches=list.length>0;
+  const cols=matchColumns(list.length);
   const m=document.getElementById("matchesPanel");
   const s=document.getElementById("standingsPanel");
   const main=document.querySelector("main");
-  if(roundActive){
-    m.style.display="";
-    s.style.display=wide?"":"none";
-    main.style.gridTemplateColumns=wide?"2fr 1fr":"1fr"; // matches (2 cols) | standings
-  }else{
-    m.style.display="none";
-    s.style.display="";
-    main.style.gridTemplateColumns="1fr";
-  }
+  s.style.display="";                              // standings: always shown
+  m.style.display=hasMatches?"":"none";
+  main.style.gridTemplateColumns=hasMatches?(cols+"fr 1fr"):"1fr"; // matches | standings
 }
 
 function renderMatches(){
@@ -243,9 +239,17 @@ function renderMatches(){
         '<span class="sc">Score</span></div></div>'+
       '<div class="badges"></div>'+
     '</div>';
-  // Two columns to fit large fields (≈75 boards for 150 singles players).
-  body.innerHTML='<div class="mhead">'+headCell+headCell+'</div>'+
-    '<div class="mgrid">'+list.map(renderMatchRow).join("")+'</div>';
+  const cols=matchColumns(list.length);
+  const rows=Math.ceil(list.length/cols)||1;
+  // Column-major fill: boards run top-to-bottom in column 1, then column 2, …
+  const colHtml=[];
+  for(let c=0;c<cols;c++){
+    const slice=list.slice(c*rows,(c+1)*rows);
+    colHtml.push('<div class="mcol">'+slice.map(renderMatchRow).join("")+'</div>');
+  }
+  const gt='grid-template-columns:repeat('+cols+',1fr)';
+  body.innerHTML='<div class="mhead" style="'+gt+'">'+headCell.repeat(cols)+'</div>'+
+    '<div class="mgrid" style="'+gt+'">'+colHtml.join("")+'</div>';
   const remaining=list.filter(m=>!m.finished && !m.phantom).length;
   document.getElementById("matchesPg").textContent=remaining+" "+LABELS.remaining;
 }
@@ -380,6 +384,3 @@ boot();
 // Persistent auto-scrollers on each panel body (run for the life of the page).
 attachAutoScroll(document.getElementById("matchesBody"));
 attachAutoScroll(document.getElementById("standingsBody"));
-
-// Re-evaluate the 2-vs-3 column layout when the viewport crosses 2048px (resize/zoom).
-window.addEventListener("resize",()=>{ if(DATA) layoutPanels(); });

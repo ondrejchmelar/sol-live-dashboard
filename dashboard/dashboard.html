@@ -221,11 +221,13 @@ header.app .aux b{display:block;font-size:clamp(1rem,2.2vw,1.6rem);font-variant-
 .match.head .side .sc{color:var(--muted)}
 
 /* ---- Two-column live matches ---- */
-#matchesBody .mhead{position:sticky;top:0;z-index:2;background:var(--panel);display:grid;grid-template-columns:1fr 1fr;border-bottom:2px solid var(--line)}
-#matchesBody .mgrid{display:grid;grid-template-columns:1fr 1fr}
-#matchesBody .mgrid .match{border-bottom:1px solid var(--line)}
-#matchesBody .mhead .match.head{position:static;border-bottom:0;background:none}
-#matchesBody .mgrid .match:nth-child(odd),#matchesBody .mhead .match.head:first-child{border-right:1px solid var(--line)}
+#matchesBody .mhead{position:sticky;top:0;z-index:2;background:var(--panel);display:grid;border-bottom:2px solid var(--line)}
+#matchesBody .mgrid{display:grid}
+#matchesBody .mcol{min-width:0;border-right:1px solid var(--line)}
+#matchesBody .mcol:last-child{border-right:0}
+#matchesBody .mcol .match{border-bottom:1px solid var(--line)}
+#matchesBody .mhead .match.head{position:static;border-bottom:0;background:none;border-right:1px solid var(--line)}
+#matchesBody .mhead .match.head:last-child{border-right:0}
 
 /* ===== Large-format overrides (rem-based → scale with browser zoom) ===== */
 html{font-size:20px}
