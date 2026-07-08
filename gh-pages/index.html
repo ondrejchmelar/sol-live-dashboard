@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SoL Live Standings</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <!-- Standalone public dashboard. Reads data.json (published by the extension)
+         from the same directory. Identical look to the extension's local dashboard. -->
+    <header>
+      <h1 id="tournament">Loading…</h1>
+      <div class="meta">
+        <span id="round" class="round"></span>
+        <span id="ago" class="ago"></span>
+        <button id="autoscroll" class="toggle" aria-pressed="false">Autoscroll</button>
+      </div>
+    </header>
+    <table>
+      <thead id="thead"></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <script src="app.js"></script>
+  </body>
+</html>

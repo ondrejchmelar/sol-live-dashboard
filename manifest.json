@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "SoL Live Dashboard",
+  "version": "0.1.0",
+  "description": "Polls a Scarry On-Line tournament page from your authenticated browser session and renders a live standings dashboard. Anubis is solved natively by the browser.",
+  "permissions": ["storage", "alarms", "offscreen"],
+  "host_permissions": [
+    "https://sol5.metapensiero.it/*",
+    "https://*.metapensiero.it/*",
+    "https://api.github.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "SoL Live Dashboard"
+  },
+  "options_page": "options/options.html"
+}

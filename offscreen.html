@@ -1,0 +1,11 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <!-- Hidden DOM-parsing helper. Has no UI; exists so the service worker can
+         use DOMParser, which is unavailable in the worker context. -->
+    <script type="module" src="offscreen.js"></script>
+  </body>
+</html>

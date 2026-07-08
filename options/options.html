@@ -1,0 +1,79 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>SoL Live Dashboard — Options</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <h1>SoL Live Dashboard — Options</h1>
+
+    <section>
+      <h2>Source</h2>
+      <label>
+        SoL standings / ranking URL
+        <input id="targetUrl" type="url" placeholder="https://sol5.metapensiero.it/lit/tourney/&lt;guid&gt;" />
+      </label>
+      <p class="hint">
+        Open this page once in a normal tab first so the browser solves Anubis and
+        stores the clearance cookie. The poller then reuses that session.
+      </p>
+      <label class="inline">
+        Poll interval (seconds, min 30)
+        <input id="pollSeconds" type="number" min="30" step="5" value="60" />
+      </label>
+      <label>
+        Tourney id for timer <span class="badge">optional</span>
+        <input id="idtourney" type="text" inputmode="numeric" placeholder="e.g. 1198 — auto-detected once the clock is running" />
+      </label>
+      <label class="inline">
+        Total rounds (for "Round n / N")
+        <input id="totalRounds" type="number" min="1" step="1" value="8" />
+      </label>
+      <label class="check">
+        <input id="debug" type="checkbox" /> Verbose logging (persist debug-level lines too)
+      </label>
+    </section>
+
+    <section>
+      <h2>Publish to GitHub <span class="badge">optional</span></h2>
+      <p class="hint">
+        Leave disabled for local-only use. Enable to push <code>data.json</code> to a
+        repo so a GitHub Pages dashboard can serve it. Use a fine-grained PAT scoped
+        to just this repo with <strong>Contents: read & write</strong>. The token is
+        stored only in this browser's local extension storage.
+      </p>
+      <label class="check">
+        <input id="pubEnabled" type="checkbox" /> Enable publishing
+      </label>
+      <div class="grid">
+        <label>Owner <input id="pubOwner" type="text" placeholder="your-user-or-org" /></label>
+        <label>Repo <input id="pubRepo" type="text" placeholder="sol-dashboard" /></label>
+        <label>Branch <input id="pubBranch" type="text" value="main" /></label>
+        <label>Path <input id="pubPath" type="text" value="data.json" /></label>
+        <label class="full">Token <input id="pubToken" type="password" placeholder="github_pat_…" /></label>
+      </div>
+    </section>
+
+    <section>
+      <h2>Debug</h2>
+      <p class="hint">
+        The extension logs each poll and keeps the <strong>last raw SoL response</strong>
+        plus the parse result. Export the bundle and share it to diagnose parsing or
+        fetch issues. The GitHub token is automatically redacted.
+      </p>
+      <div id="debugStats" class="hint mono"></div>
+      <div class="actions">
+        <button id="export" type="button">Export debug bundle</button>
+        <button id="clearLogs" type="button" class="secondary">Clear logs &amp; debug</button>
+      </div>
+    </section>
+
+    <div class="actions">
+      <button id="save">Save</button>
+      <span id="saved" class="saved"></span>
+    </div>
+
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

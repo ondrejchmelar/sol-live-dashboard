@@ -1,0 +1,16 @@
+body { font: 13px system-ui, sans-serif; width: 280px; margin: 0; padding: 12px; color: #1a1a1a; }
+h1 { font-size: 14px; margin: 0 0 10px; }
+.row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+.label { color: #666; width: 56px; flex: none; }
+.muted { color: #888; }
+.truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+.msg { color: #b25000; font-size: 12px; min-height: 14px; margin: 4px 0; }
+.pill { padding: 1px 8px; border-radius: 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
+.pill.idle { background: #eee; color: #555; }
+.pill.ok { background: #d8f5dd; color: #1a7f37; }
+.pill.error { background: #fde2e1; color: #b3261e; }
+.pill.anubis { background: #fff0c7; color: #8a6d00; }
+.buttons { display: flex; gap: 8px; margin-top: 8px; }
+button { flex: 1; padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; background: #fafafa; cursor: pointer; }
+button:hover { background: #f0f0f0; }
+button:disabled { opacity: .5; cursor: not-allowed; }
