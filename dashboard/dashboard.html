@@ -251,6 +251,11 @@ table.rank th{font-size:1.1rem;color:var(--blue-ink)}
 .match .side .names{font-weight:400}
 table.rank td.name{font-weight:400}
 .vs{opacity:.45;font-weight:400;margin:0 .25em}
+
+
+/* Doubles: long slash-joined names must shrink & ellipsize inside narrow columns */
+.match .side .names{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.match .side .sc{flex:0 0 auto;margin-left:.5em}
 </style>
 </head>
 <body>

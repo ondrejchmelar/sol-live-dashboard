@@ -133,7 +133,10 @@ function fmtName(full){
   if(i<0) return '<b class="sn">'+esc(s)+'</b>';
   return '<b class="sn">'+esc(s.slice(0,i))+'</b> '+esc(s.slice(i+1));
 }
-function names(side){return (side||[]).map(fmtName).join(' <span class="vs">/</span> ');}
+// A side's players on one line, slash-separated (surname bold caps per player).
+function names(side){
+  return '<span class="names">'+(side||[]).map(fmtName).join('<span class="vs">/</span>')+'</span>';
+}
 
 /* ============================================================
    State + render
@@ -269,8 +272,8 @@ function renderMatchRow(m){
     '<div class="match">'+
       '<div class="board">B'+m.board+'</div>'+
       '<div class="sides">'+
-        '<div class="side'+(s1win?' win':'')+'"><span class="names">'+names(m.side1)+'</span><span class="sc">'+m.score1+'</span></div>'+
-        '<div class="side'+(s2win?' win':'')+'"><span class="names">'+names(m.side2)+'</span><span class="sc">'+m.score2+'</span></div>'+
+        '<div class="side'+(s1win?' win':'')+'">'+names(m.side1)+'<span class="sc">'+m.score1+'</span></div>'+
+        '<div class="side'+(s2win?' win':'')+'">'+names(m.side2)+'<span class="sc">'+m.score2+'</span></div>'+
       '</div>'+
       '<div class="badges">'+badge+'</div>'+
     '</div>';
@@ -349,27 +352,44 @@ function tick(){
 
 // Bottom bar = DASHBOARD status only (data freshness + connection warnings).
 function refreshFooter(){
-  const u=DATA.updatedISO?new Date(DATA.updatedISO):new Date();
-  document.getElementById("updated").textContent=LABELS.updated+" "+hhmm(u);
+  const el=document.getElementById("updated");
+  if(!DATA.updatedISO){ el.textContent=""; return; }
+  el.textContent=LABELS.updated+" "+hhmm(new Date(DATA.updatedISO));
 }
 
 /* ============================================================
    Data load seam — the plugin feeds the corridor shape directly
    from chrome.storage.local (written by the background poller).
-   Falls back to the embedded sample until the first poll lands.
+   No demo fallback: with no live data we show an empty board and
+   surface the connection state (e.g. Anubis needs re-solving).
    ============================================================ */
 function applyStatus(status){
   const note=document.getElementById("dashstatus");
   if(!note) return;
-  if(status && status.state==="anubis") note.textContent="⚠ Anubis — open SoL in a tab to re-solve";
+  if(status && status.state==="anubis") note.textContent="⚠ Anubis — reload SoL in a tab to re-solve";
   else if(status && status.state==="error") note.textContent="⚠ "+(status.message||"error");
   else note.textContent="";
 }
 
+// Empty board when there's no live data (first run, or a lapsed Anubis challenge).
+function showEmpty(status){
+  DATA={event:{name:"",type:"singles",currentRound:null,totalRounds:null,location:"",club:"",system:""},
+        clock:null,matches:[],standings:[],state:"idle",updatedISO:null};
+  renderMatches(); renderStandings(); layoutPanels();
+  document.getElementById("timerbar").style.display="none";
+  const anubis=status && status.state==="anubis";
+  document.getElementById("eventName").textContent=anubis?"Anubis challenge":"Waiting for SoL…";
+  document.getElementById("eventSub").textContent=anubis
+    ? "Reload the SoL tournament page in a browser tab to continue"
+    : (status && status.state==="error" ? String(status.message||"") : "");
+  document.title="SoL Live Dashboard";
+}
+
 function boot(){
   chrome.storage.local.get(["data","status"],({data,status})=>{
-    if(data && data.event && Array.isArray(data.standings)) start(data);
-    else start(SAMPLES[SAMPLE]());
+    const anubis=status && status.state==="anubis";
+    if(!anubis && data && data.event && Array.isArray(data.standings)) start(data);
+    else showEmpty(status);
     refreshFooter();
     applyStatus(status);
   });
