@@ -124,6 +124,7 @@ function resolveClock(c){
 function pad(n){return String(n).padStart(2,"0")}
 function mmss(sec){sec=Math.max(0,Math.round(sec));return pad(Math.floor(sec/60))+":"+pad(sec%60)}
 function hhmm(d){return pad(d.getHours())+":"+pad(d.getMinutes())}
+function round5(d){const ms=5*60*1000;return new Date(Math.round(d.getTime()/ms)*ms);}
 function esc(s){return String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
 // SoL renders "Surname Firstname" — show the surname (first token) in bold caps.
 function fmtName(full){
@@ -333,7 +334,7 @@ function tick(){
   const durSec=c.durationMin*60, preSec=c.prealarmMin*60;
   const remaining=durSec-(Date.now()-started)/1000;
   aux.innerHTML='<span class="nrlabel">'+LABELS.nextRound+'</span><b>~'+
-    hhmm(new Date(started+(durSec+BREAK_MIN*60)*1000))+'</b>';
+    hhmm(round5(new Date(started+(durSec+BREAK_MIN*60)*1000)))+'</b>';
 
   if(remaining>preSec){
     bar.classList.add("state-running");
