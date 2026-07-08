@@ -215,8 +215,8 @@ function renderStatic(){
   document.title=e.name+" — Corridor Dashboard";
 }
 
-// Up to 3 match columns, but only add a column if each keeps >=15 boards.
-function matchColumns(n){ return Math.max(1, Math.min(3, Math.floor(n/15))); }
+// A new match column every 15 boards, capped at 3: <15 → 1, 15–29 → 2, 30+ → 3.
+function matchColumns(n){ return n>=30 ? 3 : n>=15 ? 2 : 1; }
 
 // Standings are always visible (1 column); the matches panel appears whenever
 // there are matches, spanning as many columns as matchColumns() allows.
