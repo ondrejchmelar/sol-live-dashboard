@@ -367,7 +367,7 @@ function refreshFooter(){
 function applyStatus(status){
   const note=document.getElementById("dashstatus");
   if(!note) return;
-  if(status && status.state==="anubis") note.textContent="⚠ Anubis — reload SoL in a tab to re-solve";
+  if(status && status.state==="anubis") note.textContent="⚠ "+(status.message||"Anubis — reconnecting…");
   else if(status && status.state==="error") note.textContent="⚠ "+(status.message||"error");
   else note.textContent="";
 }
@@ -379,9 +379,9 @@ function showEmpty(status){
   renderMatches(); renderStandings(); layoutPanels();
   document.getElementById("timerbar").style.display="none";
   const anubis=status && status.state==="anubis";
-  document.getElementById("eventName").textContent=anubis?"Anubis challenge":"Waiting for SoL…";
+  document.getElementById("eventName").textContent=anubis?"Reconnecting to SoL…":"Waiting for SoL…";
   document.getElementById("eventSub").textContent=anubis
-    ? "Reload the SoL tournament page in a browser tab to continue"
+    ? (status.message || "Re-solving the Anubis challenge…")
     : (status && status.state==="error" ? String(status.message||"") : "");
   document.title="SoL Live Dashboard";
 }

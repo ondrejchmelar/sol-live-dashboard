@@ -113,8 +113,8 @@ async function runPoll(trigger) {
   try {
     if (!cfg.targetUrl) throw new Error('No target URL set — open Options.');
 
-    // 1) Ranking / meta page (the configured lit URL).
-    const res = await fetchTarget(cfg.targetUrl);
+    // 1) Ranking / meta page (the configured lit URL). Auto-solves Anubis if needed.
+    const res = await fetchWithSolve(cfg.targetUrl, status);
     logger.info('fetch', 'ranking', {
       status: res.httpStatus, ok: res.ok, bytes: res.bytes, elapsedMs: res.elapsedMs, anubis: res.anubis
     });
@@ -248,8 +248,60 @@ async function runPoll(trigger) {
 
 function anubis(status) {
   status.state = 'anubis';
-  status.message = 'Anubis challenge returned. Open the SoL page in a normal tab to re-solve, then poll again.';
-  logger.warn('poll', 'anubis challenge detected');
+  // Reached only when auto-solve is unavailable or timed out.
+  status.message = 'Anubis challenge — auto-solve unavailable; open the SoL page in a tab to re-solve.';
+  logger.warn('poll', 'anubis challenge unresolved');
+}
+
+const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+const SOLVE_TIMEOUT_MS = 25000;
+let solving = false; // guard against concurrent solve attempts
+
+// Fetch, and if the Anubis challenge is returned, auto-solve then re-fetch.
+async function fetchWithSolve(url, status) {
+  let r = await fetchTarget(url);
+  if (r.anubis) {
+    logger.warn('anubis', 'challenge detected — auto-solving', { url });
+    status.state = 'anubis';
+    status.message = 'Reconnecting to SoL (solving challenge)…';
+    await setStatus(status);
+    const solved = await solveAnubis(url);
+    logger.info('anubis', solved ? 'auto-solved' : 'auto-solve failed/unavailable');
+    if (solved) r = await fetchTarget(url);
+  }
+  return r;
+}
+
+// Open a hidden background tab so the BROWSER solves the Anubis proof-of-work
+// natively (a service worker can't), poll until the clearance cookie refreshes,
+// then close the tab. Falls back to false if tabs aren't available/permitted.
+async function solveAnubis(url) {
+  if (solving) return false;
+  if (!chrome.tabs || !chrome.tabs.create) {
+    logger.warn('anubis', 'chrome.tabs unavailable — cannot auto-solve');
+    return false;
+  }
+  solving = true;
+  let tabId = null;
+  try {
+    const tab = await chrome.tabs.create({ url, active: false });
+    tabId = tab && tab.id;
+    const start = Date.now();
+    while (Date.now() - start < SOLVE_TIMEOUT_MS) {
+      await delay(2000);
+      const r = await fetchTarget(url);
+      if (r.ok && !r.anubis) return true; // clearance cookie is fresh
+    }
+    return false; // timed out
+  } catch (e) {
+    logger.error('anubis', 'auto-solve error (tabs blocked?)', { error: String(e.message || e) });
+    return false;
+  } finally {
+    if (tabId != null) {
+      try { await chrome.tabs.remove(tabId); } catch { /* already gone */ }
+    }
+    solving = false;
+  }
 }
 
 function withTurn(base, turn) {
