@@ -167,29 +167,33 @@ function start(data){
   }
 }
 
-/* Auto-scroll a panel body: drift down at SCROLL_SPEED, pause 2s at the bottom,
-   drift back up, pause 2s at the top, repeat. Time-based, so it's independent of
-   frame rate; it reads live scrollHeight/clientHeight every frame, so window
-   resizing and DevTools responsive view are handled automatically. Runs on the
-   element persistently — innerHTML re-renders don't disturb the loop. */
+/* Auto-scroll a panel body: drift the .scroller down at SCROLL_SPEED, pause 2s at the
+   bottom, drift back up, pause 2s at the top, repeat. Rows move via a GPU-composited
+   transform (no per-frame scroll repaint); the panel header stays fixed outside .scroller.
+   Time-based, so it's independent of frame rate, and it re-queries .scroller every tick so
+   innerHTML re-renders don't disturb the loop. */
 function attachAutoScroll(el){
   if(!el) return;
-  let pos=0, dir=1, pauseUntil=0, last=null, written=-1;
+  let pos=0, dir=1, pauseUntil=0, last=null, inner=null, written=null;
   function frame(ts){
     requestAnimationFrame(frame);
+    const cur=el.querySelector(".scroller");
+    if(!cur){ last=null; return; }                 // nothing rendered yet
+    if(cur!==inner){ inner=cur; written=null; }     // re-rendered: reapply transform
+    const clip=inner.parentNode;
     if(last==null){ last=ts; return; }
     const dt=ts-last;
     if(dt<SCROLL_FRAME_MS) return;  // throttle below the display refresh rate
     last=ts;
-    const max=el.scrollHeight-el.clientHeight;
-    if(max<=1){ if(el.scrollTop!==0){ el.scrollTop=0; written=0; } pos=0; dir=1; pauseUntil=0; return; }
+    const max=inner.offsetHeight-clip.clientHeight;
+    if(max<=1){ if(written!==0){ inner.style.transform="translateY(0)"; written=0; } pos=0; dir=1; pauseUntil=0; return; }
     if(pos>max) pos=max;            // content shrank since last frame
     if(ts<pauseUntil) return;       // holding at an end
     pos += dir*SCROLL_SPEED*(dt/1000);
     if(pos>=max){ pos=max; dir=-1; pauseUntil=ts+SCROLL_PAUSE_MS; }
     else if(pos<=0){ pos=0; dir=1; pauseUntil=ts+SCROLL_PAUSE_MS; }
     const next=Math.round(pos);
-    if(next!==written){ el.scrollTop=next; written=next; }  // skip redundant sub-pixel repaints
+    if(next!==written){ inner.style.transform="translateY("+(-next)+"px)"; written=next; }  // skip redundant frames
   }
   requestAnimationFrame(frame);
 }
@@ -257,7 +261,9 @@ function renderMatches(){
   }
   const gt='grid-template-columns:repeat('+cols+',1fr)';
   body.innerHTML='<div class="mhead" style="'+gt+'">'+headCell.repeat(cols)+'</div>'+
-    '<div class="mgrid" style="'+gt+'">'+colHtml.join("")+'</div>';
+    '<div class="sclip"><div class="scroller">'+
+      '<div class="mgrid" style="'+gt+'">'+colHtml.join("")+'</div>'+
+    '</div></div>';
   const remaining=list.filter(m=>!m.finished && !m.phantom).length;
   document.getElementById("matchesPg").textContent=remaining+" "+LABELS.remaining;
 }
@@ -296,11 +302,15 @@ function renderStandings(){
       '<td class="num">'+r.net+'</td>'+
     '</tr>';
   }).join("");
+  const cg='<colgroup><col class="cg-r"><col class="cg-name"><col class="cg-pts"><col class="cg-num"><col class="cg-num"></colgroup>';
   document.getElementById("standingsBody").innerHTML=
-    '<table class="rank"><thead><tr>'+
+    '<table class="rank rank-head">'+cg+'<thead><tr>'+
       '<th class="r">#</th><th class="name">'+(DATA.event.type==="doubles"?"Team":"Player")+'</th>'+
       '<th>'+LABELS.pts+'</th><th>'+LABELS.bch+'</th><th>'+LABELS.net+'</th>'+
-    '</tr></thead><tbody>'+rows+'</tbody></table>';
+    '</tr></thead></table>'+
+    '<div class="sclip"><div class="scroller">'+
+      '<table class="rank rank-body">'+cg+'<tbody>'+rows+'</tbody></table>'+
+    '</div></div>';
   document.getElementById("standingsPg").textContent=
     list.length+(DATA.event.type==="doubles"?" teams":" players");
 }

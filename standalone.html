@@ -157,8 +157,11 @@ main{
   background:var(--blue-ink);display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;
 }
 .panel > h2 .pginfo{font-size:.62em;font-weight:700;color:#cfe0f5;letter-spacing:.05em}
-.panel .body{padding:0 clamp(.3rem,.8vw,.6rem) clamp(.3rem,.8vw,.6rem);overflow-y:auto;flex:1 1 auto;min-height:0;scrollbar-width:none}
+.panel .body{padding:0 clamp(.3rem,.8vw,.6rem) clamp(.3rem,.8vw,.6rem);overflow:hidden;flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
 .panel .body::-webkit-scrollbar{width:0;height:0}
+/* Auto-scroll: fixed header stays in .body; rows live in .scroller, moved via GPU transform inside the clipping .sclip */
+.panel .body .sclip{flex:1 1 auto;min-height:0;overflow:hidden;position:relative}
+.panel .body .scroller{will-change:transform}
 
 /* ---------- Match rows ---------- */
 .match{
@@ -198,15 +201,19 @@ main{
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
 
 /* ---------- Standings ---------- */
-table.rank{width:100%;border-collapse:collapse;font-size:clamp(.85rem,1.6vw,1.35rem)}
+table.rank{width:100%;border-collapse:collapse;table-layout:fixed;font-size:clamp(.85rem,1.6vw,1.35rem)}
+/* fixed layout + shared colgroup keep the pinned header table aligned with the scrolling body table */
+table.rank col.cg-r{width:2.4rem}
+table.rank col.cg-pts{width:2.8rem}
+table.rank col.cg-num{width:2.6rem}
 table.rank th{
   text-align:right;font-size:.7em;text-transform:uppercase;letter-spacing:.06em;
   color:var(--muted);font-weight:800;padding:.2em .5em;border-bottom:2px solid var(--line);
-  position:sticky;top:0;z-index:2;background:var(--panel);
+  background:var(--panel);
 }
 table.rank th.name,table.rank th.r{text-align:left}
 table.rank td{padding:clamp(.28rem,.7vw,.55rem) .5em;border-bottom:1px solid var(--line);text-align:right}
-table.rank td.name{text-align:left;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:0;width:99%}
+table.rank td.name{text-align:left;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 table.rank td.r{text-align:center;width:2.4em}
 table.rank td.pts{font-weight:800;color:var(--blue-ink);font-variant-numeric:tabular-nums}
 table.rank td.num{font-variant-numeric:tabular-nums;color:var(--muted)}
@@ -262,7 +269,7 @@ header.app .aux b{display:block;font-size:clamp(1rem,2.2vw,1.6rem);font-variant-
 .match.head .side .sc{color:var(--muted)}
 
 /* ---- Two-column live matches ---- */
-#matchesBody .mhead{position:sticky;top:0;z-index:2;background:var(--panel);display:grid;border-bottom:2px solid var(--line)}
+#matchesBody .mhead{background:var(--panel);display:grid;border-bottom:2px solid var(--line)}
 #matchesBody .mgrid{display:grid}
 #matchesBody .mcol{min-width:0;border-right:1px solid var(--line)}
 #matchesBody .mcol:last-child{border-right:0}
@@ -876,24 +883,33 @@ function start(data){
   }
 }
 
+/* Auto-scroll a panel body: drift the .scroller down at SCROLL_SPEED, pause at the
+   bottom, drift back up, pause at the top, repeat. The rows move via a GPU-composited
+   transform (no per-frame scroll repaint); the panel header stays fixed outside .scroller.
+   Time-based, so it's independent of frame rate, and it re-queries .scroller every tick so
+   innerHTML re-renders don't disturb the loop. */
 function attachAutoScroll(el){
   if (!el) return;
-  let pos = 0, dir = 1, pauseUntil = 0, last = null, written = -1;
+  let pos = 0, dir = 1, pauseUntil = 0, last = null, inner = null, written = null;
   function frame(ts){
     requestAnimationFrame(frame);
+    const cur = el.querySelector(".scroller");
+    if (!cur){ last = null; return; }                    // nothing rendered yet
+    if (cur !== inner){ inner = cur; written = null; }    // re-rendered: reapply transform
+    const clip = inner.parentNode;
     if (last == null){ last = ts; return; }
     const dt = ts - last;
-    if (dt < SCROLL_FRAME_MS) return;   // throttle below the display refresh rate
+    if (dt < SCROLL_FRAME_MS) return;                     // throttle below the display refresh rate
     last = ts;
-    const max = el.scrollHeight - el.clientHeight;
-    if (max <= 1){ if (el.scrollTop !== 0){ el.scrollTop = 0; written = 0; } pos = 0; dir = 1; pauseUntil = 0; return; }
+    const max = inner.offsetHeight - clip.clientHeight;
+    if (max <= 1){ if (written !== 0){ inner.style.transform = "translateY(0)"; written = 0; } pos = 0; dir = 1; pauseUntil = 0; return; }
     if (pos > max) pos = max;
     if (ts < pauseUntil) return;
     pos += dir * SCROLL_SPEED * (dt / 1000);
     if (pos >= max){ pos = max; dir = -1; pauseUntil = ts + SCROLL_PAUSE_MS; }
     else if (pos <= 0){ pos = 0; dir = 1; pauseUntil = ts + SCROLL_PAUSE_MS; }
     const next = Math.round(pos);
-    if (next !== written){ el.scrollTop = next; written = next; }  // skip redundant sub-pixel repaints
+    if (next !== written){ inner.style.transform = "translateY(" + (-next) + "px)"; written = next; }  // skip redundant frames
   }
   requestAnimationFrame(frame);
 }
@@ -956,7 +972,9 @@ function renderMatches(){
   }
   const gt = "grid-template-columns:repeat(" + cols + ",1fr)";
   body.innerHTML = '<div class="mhead" style="' + gt + '">' + headCell.repeat(cols) + "</div>" +
-    '<div class="mgrid" style="' + gt + '">' + colHtml.join("") + "</div>";
+    '<div class="sclip"><div class="scroller">' +
+      '<div class="mgrid" style="' + gt + '">' + colHtml.join("") + "</div>" +
+    "</div></div>";
   const remaining = list.filter((m) => !m.finished && !m.phantom).length;
   document.getElementById("matchesPg").textContent = remaining + " " + LABELS.remaining;
 }
@@ -992,11 +1010,15 @@ function renderStandings(){
       '<td class="num">' + r.net + "</td>" +
     "</tr>";
   }).join("");
+  const cg = '<colgroup><col class="cg-r"><col class="cg-name"><col class="cg-pts"><col class="cg-num"><col class="cg-num"></colgroup>';
   document.getElementById("standingsBody").innerHTML =
-    '<table class="rank"><thead><tr>' +
+    '<table class="rank rank-head">' + cg + "<thead><tr>" +
       '<th class="r">#</th><th class="name">' + (DATA.event.type === "doubles" ? "Team" : "Player") + "</th>" +
       "<th>" + LABELS.pts + "</th><th>" + LABELS.bch + "</th><th>" + LABELS.net + "</th>" +
-    "</tr></thead><tbody>" + rows + "</tbody></table>";
+    "</tr></thead></table>" +
+    '<div class="sclip"><div class="scroller">' +
+      '<table class="rank rank-body">' + cg + "<tbody>" + rows + "</tbody></table>" +
+    "</div></div>";
   document.getElementById("standingsPg").textContent =
     list.length + (DATA.event.type === "doubles" ? " teams" : " players");
 }
