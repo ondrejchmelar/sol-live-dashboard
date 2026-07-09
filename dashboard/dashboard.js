@@ -19,6 +19,7 @@ const SAMPLE="doubles";
 /* ---------- Auto-scroll config ---------- */
 const SCROLL_SPEED=28;       // px/sec vertical drift
 const SCROLL_PAUSE_MS=2000;  // pause at top and bottom
+const SCROLL_FRAME_MS=33;    // ~30fps cap — keeps autoscroll off the display's full refresh rate
 
 /* ============================================================
    Embedded sample datasets (mirror SoL / data.json shape).
@@ -173,19 +174,22 @@ function start(data){
    element persistently — innerHTML re-renders don't disturb the loop. */
 function attachAutoScroll(el){
   if(!el) return;
-  let pos=0, dir=1, pauseUntil=0, last=null;
+  let pos=0, dir=1, pauseUntil=0, last=null, written=-1;
   function frame(ts){
     requestAnimationFrame(frame);
     if(last==null){ last=ts; return; }
-    const dt=ts-last; last=ts;
+    const dt=ts-last;
+    if(dt<SCROLL_FRAME_MS) return;  // throttle below the display refresh rate
+    last=ts;
     const max=el.scrollHeight-el.clientHeight;
-    if(max<=1){ if(el.scrollTop!==0) el.scrollTop=0; pos=0; dir=1; pauseUntil=0; return; }
+    if(max<=1){ if(el.scrollTop!==0){ el.scrollTop=0; written=0; } pos=0; dir=1; pauseUntil=0; return; }
     if(pos>max) pos=max;            // content shrank since last frame
     if(ts<pauseUntil) return;       // holding at an end
     pos += dir*SCROLL_SPEED*(dt/1000);
     if(pos>=max){ pos=max; dir=-1; pauseUntil=ts+SCROLL_PAUSE_MS; }
     else if(pos<=0){ pos=0; dir=1; pauseUntil=ts+SCROLL_PAUSE_MS; }
-    el.scrollTop=pos;
+    const next=Math.round(pos);
+    if(next!==written){ el.scrollTop=next; written=next; }  // skip redundant sub-pixel repaints
   }
   requestAnimationFrame(frame);
 }
