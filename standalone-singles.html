@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SoL Live — Corridor Dashboard (standalone)</title>
+<!-- ============================================================================
+     SoL Live — SINGLE-FILE corridorr dashboard with an in-browser Anubis solver.
+     No Chrome extension, no Node server. Everything (PoW solver + SoL scraper +
+     dashboard) lives in this one file.
+
+     ── WHY IT NEEDS A SPECIAL LAUNCH ──────────────────────────────────────────
+     SoL (sol5.metapensiero.it) serves plain HTML with NO CORS headers, so a
+     normal browser page may not READ cross-origin responses — it can't even see
+     the Anubis challenge to solve it. The extension only worked because its
+     host_permissions bypass CORS. A plain .html file has no such privilege, so
+     you must launch a THROWAWAY Chromium with web security disabled:
+
+       Linux:
+         google-chrome --disable-web-security --user-data-dir="/tmp/sol-kiosk" \
+           --kiosk "file:///ABS/PATH/standalone.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
+
+       macOS:
+         "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+           --disable-web-security --user-data-dir="/tmp/sol-kiosk" \
+           --kiosk "file:///ABS/PATH/standalone.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
+
+       Windows:
+         chrome.exe --disable-web-security --user-data-dir="%TEMP%\sol-kiosk" ^
+           --kiosk "file:///C:/ABS/PATH/standalone.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
+
+     NOTES:
+       • --user-data-dir is REQUIRED: Chrome ignores --disable-web-security on your
+         normal profile. Use a fresh disposable dir.
+       • Firefox has NO equivalent flag — use Chrome / Chromium / Edge / Brave.
+       • Configure the target either via the ?url= query param (above) or by
+         editing CONFIG.targetUrl below. Also supported: ?poll=<sec>&rounds=<N>&idt=<id>.
+       • COOKIE: after solving, Anubis sets `techaro.lol-anubis-auth`. Verified live
+         (2026-07) that SoL issues it as SameSite=None; Secure, so it DOES ride
+         along on our cross-site fetches under --disable-web-security — no extra
+         setup. (If a future Anubis config ever downgrades it to SameSite=Lax/Strict
+         you'd loop on "Anubis challenge — retrying…"; the fix would be a Chrome
+         enterprise policy LegacySameSiteCookieBehaviorEnabledForDomainList =
+         ["metapensiero.it"], or a tiny same-origin local proxy.)
+       • VERIFIED end-to-end against the live 28th Eurocup Singles page: solver
+         cleared Anubis, 146 players parsed and rendered, zero JS errors.
+     ============================================================================ -->
+<style>
+/* ============================================================
+   Carrom Tournament Corridor Dashboard — PoC
+   Light / neutral theme, projector-first, responsive.
+   Design cues borrowed from eurocup.carrom.cz:
+     navy header (#0b4e93), blue accents (#0d7ff2/#275a88),
+     orange (#ff4100/#FF9C00) and green (#00BD39).
+   No build, no CDN — runs offline from file://.
+   ============================================================ */
+:root{
+  --navy:#0b4e93;
+  --navy-2:#0a3f78;
+  --blue:#0d7ff2;
+  --blue-ink:#275a88;
+  --sky:#63aefb;
+  --orange:#ff4100;
+  --amber:#ff9c00;
+  --green:#00bd39;
+  --ink:#14233a;
+  --muted:#5b6b80;
+  --line:#dfe6ef;
+  --panel:#ffffff;
+  --bg:#eef2f7;
+  --gold:#e8b00a;
+  --silver:#9aa7b4;
+  --bronze:#c47a36;
+  --shadow:0 1px 3px rgba(16,40,80,.10),0 6px 18px rgba(16,40,80,.06);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--bg);color:var(--ink);
+  display:flex;flex-direction:column;height:100vh;overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ---------- Header ---------- */
+header.app{
+  background:linear-gradient(180deg,var(--navy),var(--navy-2));
+  color:#fff;display:flex;align-items:center;gap:clamp(.6rem,1.5vw,1.2rem);
+  padding:clamp(.5rem,1.4vw,1rem) clamp(.8rem,2vw,1.6rem);
+}
+header.app .logo{flex:0 0 auto;width:clamp(34px,4.2vw,56px);height:clamp(34px,4.2vw,56px);display:block;object-fit:contain}
+header.app .title{display:flex;flex-direction:column;line-height:1.1;min-width:0}
+header.app .event{
+  font-size:clamp(1.05rem,2.4vw,2rem);font-weight:800;letter-spacing:.2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+header.app .sub{
+  font-size:clamp(.7rem,1.3vw,1rem);color:#cfe0f5;font-weight:600;
+  text-transform:uppercase;letter-spacing:.08em;margin-top:.15rem;
+}
+header.app .sub .dot{opacity:.55;margin:0 .45em}
+
+/* ---------- Timer bar ---------- */
+.timerbar{
+  display:grid;grid-template-columns:auto 1fr auto;align-items:center;
+  gap:clamp(.6rem,2vw,2rem);
+  padding:clamp(.5rem,1.4vw,1rem) clamp(.8rem,2vw,1.6rem);
+  background:#fff;border-bottom:1px solid var(--line);box-shadow:var(--shadow);
+}
+.timerbar .round{
+  font-size:clamp(.95rem,1.8vw,1.5rem);font-weight:800;color:var(--blue-ink);
+  white-space:nowrap;
+}
+.timerbar .round small{display:block;font-size:.6em;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
+.timerbar .clock{text-align:center;line-height:1}
+.timerbar .clock .time{
+  font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  font-size:clamp(2.4rem,8vw,5.5rem);font-weight:800;letter-spacing:.01em;
+  font-variant-numeric:tabular-nums;
+}
+.timerbar .clock .state{
+  font-size:clamp(.7rem,1.5vw,1.15rem);font-weight:800;text-transform:uppercase;
+  letter-spacing:.1em;margin-top:.1rem;
+}
+.timerbar .aux{text-align:right;font-weight:700;color:var(--muted);white-space:nowrap}
+.timerbar .aux .nrlabel{display:block;font-size:clamp(.62rem,1.1vw,.95rem);text-transform:uppercase;letter-spacing:.1em}
+.timerbar .aux b{display:block;color:var(--blue-ink);font-size:clamp(1.4rem,3.2vw,2.4rem);font-variant-numeric:tabular-nums;line-height:1.05}
+
+/* clock states */
+.state-running .time{color:var(--ink)}
+.state-running .state{color:var(--green)}
+/* step-end keeps these looping animations discrete (value holds between keyframes),
+   so the compositor only produces a frame when the value flips (~2/s) instead of
+   repainting/swapping every vsync (60/s). Smooth interpolation here pins ~1 CPU core. */
+.state-prealarm{animation:pulsebg 1.6s step-end infinite}
+.state-prealarm .time{color:var(--orange)}
+.state-prealarm .state{color:var(--orange)}
+.state-time .time{color:var(--orange)}
+.state-time .state{color:var(--orange)}
+.state-ended .time,.state-ended .state{color:#e00516}
+.state-ended{animation:pulsebg-red 1.6s step-end infinite}
+@keyframes pulsebg-red{0%,100%{background:#fff}50%{background:#ffe1e1}}
+.state-next .time{color:var(--blue-ink)}
+.state-next .state{color:var(--blue-ink)}
+@keyframes pulsebg{0%,100%{background:#fff}50%{background:#fff4e6}}
+.statedot{display:inline-block;width:.7em;height:.7em;border-radius:50%;background:currentColor;margin-right:.4em;vertical-align:baseline}
+
+/* ---------- Panels ---------- */
+main{
+  flex:1 1 auto;display:grid;grid-template-columns:1fr 1fr;
+  gap:clamp(.6rem,1.4vw,1.1rem);padding:clamp(.6rem,1.4vw,1.1rem);min-height:0;
+}
+.panel{
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  box-shadow:var(--shadow);display:flex;flex-direction:column;min-height:0;overflow:hidden;
+}
+.panel > h2{
+  margin:0;padding:clamp(.5rem,1.2vw,.85rem) clamp(.7rem,1.4vw,1.1rem);
+  font-size:clamp(.95rem,1.8vw,1.5rem);font-weight:800;color:#fff;
+  background:var(--blue-ink);display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;
+}
+.panel > h2 .pginfo{font-size:.62em;font-weight:700;color:#cfe0f5;letter-spacing:.05em}
+.panel .body{padding:0 clamp(.3rem,.8vw,.6rem) clamp(.3rem,.8vw,.6rem);overflow:hidden;flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+.panel .body::-webkit-scrollbar{width:0;height:0}
+/* Auto-scroll: fixed header stays in .body; rows live in .scroller, moved via GPU transform inside the clipping .sclip */
+.panel .body .sclip{flex:1 1 auto;min-height:0;overflow:hidden;position:relative}
+.panel .body .scroller{will-change:transform}
+
+/* ---------- Match rows ---------- */
+.match{
+  display:grid;grid-template-columns:auto 1fr auto;align-items:center;
+  gap:clamp(.4rem,1vw,.9rem);
+  padding:clamp(.35rem,.9vw,.7rem) clamp(.4rem,1vw,.7rem);
+  border-bottom:1px solid var(--line);
+}
+.match:last-child{border-bottom:0}
+.match .board{
+  flex:0 0 auto;min-width:2.2em;text-align:center;
+  font-weight:800;color:#fff;background:var(--blue);border-radius:8px;
+  padding:.18em .35em;font-size:clamp(.8rem,1.5vw,1.2rem);
+}
+.match .sides{min-width:0;display:flex;flex-direction:column;gap:.15em}
+.match .side{
+  display:flex;justify-content:space-between;gap:.5rem;align-items:baseline;
+  font-size:clamp(.85rem,1.6vw,1.35rem);line-height:1.15;
+}
+.match .side .names{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.match .side .sc{
+  font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  font-weight:800;font-variant-numeric:tabular-nums;min-width:1.6em;text-align:right;color:var(--muted);
+}
+.match .side.win .names{color:var(--green)}
+.match .side.win .sc{color:var(--green)}
+.match .badges{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.2em;min-width:2.2em}
+.badge{
+  font-size:clamp(.6rem,1.1vw,.85rem);font-weight:800;text-transform:uppercase;
+  letter-spacing:.05em;padding:.12em .45em;border-radius:999px;white-space:nowrap;min-width:1.7em;display:inline-flex;align-items:center;justify-content:center;line-height:1;
+}
+.badge.fin{background:#e3f8ea;color:#067a2a}
+.badge.live{background:#fff0db;color:#a85e00}
+.badge.live .statedot{width:.55em;height:.55em;animation:blink 1.2s step-end infinite}
+.badge.bye{background:#eef1f5;color:var(--muted)}
+.badge .statedot{margin:0}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+
+/* ---------- Standings ---------- */
+table.rank{width:100%;border-collapse:collapse;table-layout:fixed;font-size:clamp(.85rem,1.6vw,1.35rem)}
+/* fixed layout + shared colgroup keep the pinned header table aligned with the scrolling body table */
+table.rank col.cg-r{width:2.4rem}
+table.rank col.cg-pts{width:2.8rem}
+table.rank col.cg-num{width:2.6rem}
+table.rank th{
+  text-align:right;font-size:.7em;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--muted);font-weight:800;padding:.2em .5em;border-bottom:2px solid var(--line);
+  background:var(--panel);
+}
+table.rank th.name,table.rank th.r{text-align:left}
+table.rank td{padding:clamp(.28rem,.7vw,.55rem) .5em;border-bottom:1px solid var(--line);text-align:right}
+table.rank td.name{text-align:left;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+table.rank td.r{text-align:center;width:2.4em}
+table.rank td.pts{font-weight:800;color:var(--blue-ink);font-variant-numeric:tabular-nums}
+table.rank td.num{font-variant-numeric:tabular-nums;color:var(--muted)}
+.rankchip{
+  display:inline-block;min-width:1.7em;padding:.12em .35em;border-radius:7px;
+  font-weight:800;color:#fff;background:var(--blue-ink);font-variant-numeric:tabular-nums;
+}
+.rankchip.r1{background:var(--gold)}
+.rankchip.r2{background:var(--silver)}
+.rankchip.r3{background:var(--bronze)}
+
+/* ---------- Footer ---------- */
+footer.app{
+  display:flex;flex-wrap:wrap;gap:clamp(.5rem,2vw,1.5rem);align-items:center;
+  padding:clamp(.4rem,1vw,.7rem) clamp(.8rem,2vw,1.6rem);
+  background:#0a3f78;color:#cfe0f5;font-size:clamp(.72rem,1.3vw,1rem);font-weight:600;
+}
+footer.app .live{color:#fff;font-weight:800;text-transform:uppercase;letter-spacing:.08em}
+footer.app .live .statedot{background:var(--green);animation:blink 1.6s step-end infinite}
+footer.app .src{margin-left:auto;opacity:.75}
+
+/* ---------- Responsive: stack on phones ---------- */
+@media (max-width:780px){
+  body{height:auto;overflow:auto}
+  main{grid-template-columns:1fr}
+  .timerbar{grid-template-columns:1fr;text-align:center;gap:.3rem}
+  .timerbar .round,.timerbar .aux{text-align:center}
+  header.app .event{white-space:normal}
+}
+
+/* ---- Clock moved into the top header bar ---- */
+header.app{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:clamp(.5rem,1.5vw,1.2rem)}
+header.app .brand{display:flex;align-items:center;gap:clamp(.6rem,1.5vw,1.2rem);min-width:0}
+header.app .clockbox{justify-self:center;text-align:center;line-height:1.05}
+header.app .clockbox .time{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:clamp(1.7rem,4.8vw,3.2rem);font-weight:800;font-variant-numeric:tabular-nums;color:#fff}
+header.app .clockbox .state{font-size:clamp(.6rem,1.2vw,.95rem);font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#cfe0f5}
+header.app .aux{justify-self:end;text-align:right;color:#cfe0f5;font-weight:700;white-space:nowrap}
+header.app .aux .nrlabel{display:block;font-size:clamp(.55rem,1vw,.8rem);text-transform:uppercase;letter-spacing:.08em;opacity:.85}
+header.app .aux b{display:block;font-size:clamp(1rem,2.2vw,1.6rem);font-variant-numeric:tabular-nums}
+/* clock state colors, readable on the navy header */
+.state-running .time{color:#fff}
+.state-running .state{color:#7cfc9b}
+.state-prealarm .time,.state-prealarm .state{color:#ffb84d}
+.state-ended .time,.state-ended .state{color:#ff6b6b}
+.state-next .time,.state-next .state{color:#cfe0f5}
+.state-prealarm,.state-ended{animation:none}
+.state-ended .time,.state-ended .state{animation:textpulse 1.2s step-end infinite}
+@keyframes textpulse{0%,100%{opacity:1}50%{opacity:.45}}
+/* ---- Live matches column header ---- */
+.match.head{position:sticky;top:0;background:var(--panel);z-index:2;border-bottom:2px solid var(--line)}
+.match.head .board{background:none;color:var(--muted);font-weight:800;padding:0 .2em;font-size:.72em;text-transform:uppercase;letter-spacing:.05em;text-align:left}
+.match.head .side{font-size:.72em;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:800}
+.match.head .side .sc{color:var(--muted)}
+
+/* ---- Two-column live matches ---- */
+#matchesBody .mhead{background:var(--panel);display:grid;border-bottom:2px solid var(--line)}
+#matchesBody .mgrid{display:grid}
+#matchesBody .mcol{min-width:0;border-right:1px solid var(--line)}
+#matchesBody .mcol:last-child{border-right:0}
+#matchesBody .mcol .match{border-bottom:1px solid var(--line)}
+#matchesBody .mhead .match.head{position:static;border-bottom:0;background:none;border-right:1px solid var(--line)}
+#matchesBody .mhead .match.head:last-child{border-right:0}
+
+/* ===== Large-format overrides (rem-based → scale with browser zoom) ===== */
+html{font-size:20px}
+header.app .event{font-size:2rem}
+header.app .sub{font-size:1.1rem}
+header.app .clockbox .time{font-size:3.6rem}
+header.app .clockbox .state{font-size:1.15rem}
+header.app .aux .nrlabel{font-size:.95rem}
+header.app .aux b{font-size:1.9rem}
+.panel>h2{font-size:1.55rem}
+.panel>h2 .pginfo{font-size:1rem}
+table.rank{font-size:1.35rem}
+table.rank th{font-size:1.1rem;color:var(--blue-ink)}
+.rankchip{font-size:1.15rem}
+.match .side{font-size:1.3rem}
+.match .board{font-size:1.15rem}
+.badge{font-size:1rem}
+.mhead .match.head .board,.mhead .match.head .side{font-size:1.1rem;color:var(--blue-ink)}
+/* surname = bold caps, first name = regular */
+.sn{font-weight:800;text-transform:uppercase}
+.match .side .names{font-weight:400}
+table.rank td.name{font-weight:400}
+.vs{opacity:.45;font-weight:400;margin:0 .25em}
+
+
+/* Doubles: long slash-joined names must shrink & ellipsize inside narrow columns */
+.match .side .names{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+</style>
+</head>
+<body>
+<header class="app">
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 64 64" role="img" aria-label="Carrom">
+      <rect x="3" y="3" width="58" height="58" rx="9" fill="#ffffff" opacity=".12"/>
+      <rect x="12" y="12" width="40" height="40" rx="4" fill="none" stroke="#ffffff" stroke-width="2.5"/>
+      <circle cx="32" cy="32" r="8.5" fill="none" stroke="#ffffff" stroke-width="2.5"/>
+      <circle cx="32" cy="32" r="2.6" fill="#ff9c00"/>
+      <circle cx="16" cy="16" r="3" fill="#ffffff"/><circle cx="48" cy="16" r="3" fill="#ffffff"/>
+      <circle cx="16" cy="48" r="3" fill="#ffffff"/><circle cx="48" cy="48" r="3" fill="#ffffff"/>
+    </svg>
+    <div class="title">
+      <span class="event" id="eventName">SoL Live</span>
+      <span class="sub" id="eventSub"></span>
+    </div>
+  </div>
+  <div class="clockbox" id="timerbar">
+    <div class="time" id="clockTime">--:--</div>
+    <div class="state" id="clockState"></div>
+  </div>
+  <div class="aux" id="clockAux"></div>
+</header>
+
+<main>
+  <section class="panel" id="matchesPanel">
+    <h2><span id="matchesTitle">Live matches</span><span class="pginfo" id="matchesPg"></span></h2>
+    <div class="body" id="matchesBody"></div>
+  </section>
+  <section class="panel" id="standingsPanel">
+    <h2><span>Standings</span><span class="pginfo" id="standingsPg"></span></h2>
+    <div class="body" id="standingsBody"></div>
+  </section>
+</main>
+
+<footer class="app">
+  <span class="live"><span class="statedot"></span>Live</span>
+  <span id="updated"></span>
+  <span class="src" id="dashstatus"></span>
+</footer>
+
+<script>
+"use strict";
+/* ============================================================================
+   CONFIG — edit here, or override with URL query params:
+     ?url=<lit tourney URL>&poll=<seconds>&rounds=<N>&idt=<idtourney>
+   ============================================================================ */
+const Q = new URLSearchParams(location.search);
+const CONFIG = {
+  // The public SoL "lit" tournament page: /lit/tourney/<guid>
+  targetUrl: Q.get("url") || "https://sol5.metapensiero.it/lit/tourney/a61d130076e211f1b82f901b0edac7fa",
+  pollSeconds: Number(Q.get("poll")) || 60,
+  // Swiss events don't expose a target round count — shown as "Round n / N".
+  totalRounds: Q.get("rounds") ? Number(Q.get("rounds")) : 8,
+  // Optional manual countdown id (normally auto-detected while the clock runs).
+  idtourney: Q.get("idt") || "",
+};
+
+/* ============================================================================
+   1) ANUBIS proof-of-work solver (runs entirely in this page).
+   Protocol (TecharoHQ/anubis): the interstitial embeds
+     <script id="anubis_challenge" type="application/json">
+       {"challenge":{"id":"…","randomData":"…"},"rules":{"algorithm":"…","difficulty":N}}
+   Solve: find nonce s.t. sha256hex(randomData + nonce) starts with `difficulty`
+   leading '0' hex chars. Then GET
+     /.within.website/x/cmd/anubis/api/pass-challenge?id=&response=<hash>&nonce=&redir=&elapsedTime=
+   which sets the `techaro.lol-anubis-auth` cookie (~7-day life) and 302→redir.
+   ============================================================================ */
+const ANUBIS_API = "/.within.website/x/cmd/anubis/api";
+
+function toHex(buf){
+  const a = new Uint8Array(buf);
+  let s = "";
+  for (let i = 0; i < a.length; i++) s += a[i].toString(16).padStart(2, "0");
+  return s;
+}
+
+// Batched native SHA-256 so the loop is fast AND yields to keep the UI alive.
+async function solvePoW(randomData, difficulty){
+  if (!(self.crypto && self.crypto.subtle))
+    throw new Error("crypto.subtle unavailable (needs a secure context; file:// works in Chrome)");
+  const prefix = "0".repeat(Math.max(1, difficulty | 0));
+  const enc = new TextEncoder();
+  const t0 = performance.now();
+  const BATCH = 512;
+  let nonce = 0;
+  for (;;){
+    const jobs = [];
+    for (let i = 0; i < BATCH; i++){
+      const n = nonce + i;
+      jobs.push(crypto.subtle.digest("SHA-256", enc.encode(randomData + n)).then((b) => toHex(b)));
+    }
+    const hashes = await Promise.all(jobs); // resolves in array (= nonce) order
+    for (let i = 0; i < hashes.length; i++){
+      if (hashes[i].startsWith(prefix)) return { hash: hashes[i], nonce: nonce + i, elapsed: performance.now() - t0 };
+    }
+    nonce += BATCH;
+    if (nonce > 100000000) throw new Error("PoW exceeded 100M iterations — difficulty too high?");
+  }
+}
+
+const pathOf = (u) => { const x = new URL(u); return x.pathname + x.search; };
+
+// Given the interstitial HTML, solve it and hit pass-challenge. Returns true on success.
+async function solveAnubis(interstitialHtml, targetUrl){
+  const doc = new DOMParser().parseFromString(interstitialHtml, "text/html");
+
+  // Primary path: embedded challenge JSON + proof of work.
+  const el = doc.querySelector("#anubis_challenge");
+  if (el && el.textContent && el.textContent.trim()){
+    let j = null;
+    try { j = JSON.parse(el.textContent); } catch (e) { j = null; }
+    if (j && j.challenge && j.rules){
+      const difficulty = Number(j.rules.difficulty) || 1;
+      logStatus("Solving Anubis proof-of-work (difficulty " + difficulty + ")…");
+      const { hash, nonce, elapsed } = await solvePoW(j.challenge.randomData, difficulty);
+      const u = new URL(ANUBIS_API + "/pass-challenge", targetUrl);
+      u.searchParams.set("id", j.challenge.id);
+      u.searchParams.set("response", hash);
+      u.searchParams.set("nonce", String(nonce));
+      u.searchParams.set("redir", pathOf(targetUrl));
+      u.searchParams.set("elapsedTime", String(Math.round(elapsed)));
+      const r = await fetch(u.href, { credentials: "include", redirect: "follow", cache: "no-store" });
+      return r.ok || r.redirected;
+    }
+  }
+
+  // Fallback: a meta-refresh interstitial (metarefresh challenge) — just follow it.
+  const meta = doc.querySelector('meta[http-equiv="refresh" i]');
+  if (meta){
+    const m = /url=(.+)$/i.exec(meta.getAttribute("content") || "");
+    if (m){
+      const dest = new URL(m[1].trim().replace(/^['"]|['"]$/g, ""), targetUrl);
+      const r = await fetch(dest.href, { credentials: "include", redirect: "follow", cache: "no-store" });
+      return r.ok || r.redirected;
+    }
+  }
+  return false;
+}
+
+/* ============================================================================
+   2) FETCH — credentialed, no-store; heuristically detect the Anubis gate.
+   (Ported from src/fetcher.js.)
+   ============================================================================ */
+const ANUBIS_MARKERS = [/anubis/i, /making sure you[’'`]?re not a bot/i, /proof[- ]of[- ]work/i, /not a bot/i];
+
+async function fetchTarget(url){
+  const started = performance.now();
+  const resp = await fetch(url, {
+    credentials: "include",
+    redirect: "follow",
+    cache: "no-store", // countdown/turn URLs repeat every round — never serve a stale clock/score
+    headers: { Accept: "text/html,application/xhtml+xml" },
+  });
+  const html = await resp.text();
+  const elapsedMs = Math.round(performance.now() - started);
+  const anubis = ANUBIS_MARKERS.some((re) => re.test(html.slice(0, 4000))) && !/<table/i.test(html);
+  return {
+    ok: resp.ok, httpStatus: resp.status, html, anubis,
+    contentType: resp.headers.get("content-type") || "", bytes: html.length,
+    elapsedMs, redirected: resp.redirected, finalUrl: resp.url,
+  };
+}
+
+// Fetch, and if the Anubis challenge is returned, solve it in-page then re-fetch.
+async function fetchWithSolve(url){
+  let r = await fetchTarget(url);
+  if (r.anubis){
+    if (!everRendered) showEmpty({ state: "anubis", message: "Re-solving the Anubis challenge…" });
+    applyStatus({ state: "anubis", message: "Solving the Anubis challenge…" });
+    try {
+      const solved = await solveAnubis(r.html, url);
+      if (solved) r = await fetchTarget(url);
+    } catch (e) {
+      console.warn("[anubis] solve failed:", e);
+    }
+  }
+  return r;
+}
+
+/* ============================================================================
+   3) PARSERS — ported verbatim from src/parser.js (browser DOMParser).
+   ============================================================================ */
+function parseTourney(html){
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const tablesFound = doc.querySelectorAll("table").length;
+
+  if (isAnubis(doc)) return emptyTourney("anubis", "", tablesFound);
+
+  const tournament = cleanText(doc.querySelector("h1.title, h1, title")?.textContent) || "Tournament";
+  const table = doc.querySelector("table.ranking") || pickRankingTable(doc);
+  const details = parseDetails(doc);
+  const idtourney = extractIdTourney(doc);
+  const currentTurn = detectCurrentTurn(doc);
+
+  if (!table){
+    const t = emptyTourney("empty", tournament, tablesFound);
+    t.idtourney = idtourney;
+    t.currentTurn = currentTurn;
+    t.details = details;
+    return t;
+  }
+
+  const headers = readHeaders(table);
+  const rankIndex = findHeader(headers, ["#", "rank", "pos", "place"], 0);
+  const playerIndex = findHeader(headers, ["team", "player", "name", "competitor"], 1);
+  const prized =
+    headers.map(normalize).some((h) => /prize|premio|prijs|preis/.test(h)) ||
+    !!table.querySelector("td.total, th.total");
+
+  const bodyRows = [...table.querySelectorAll("tbody tr")];
+  const rows = bodyRows.length ? bodyRows : [...table.querySelectorAll("tr")].slice(1);
+  const standings = rows
+    .map((tr, i) => {
+      const cells = [...tr.querySelectorAll("td, th")].map((c) => cleanText(c.textContent));
+      if (!cells.length) return null;
+      const rank = num(cells[rankIndex]);
+      return { rank: rank != null ? rank : i + 1, player: cells[playerIndex] || "", cells };
+    })
+    .filter(Boolean);
+
+  const playerHdr = String(headers[playerIndex] || "").toLowerCase();
+  const type = /team|doubl|pair|čtyř|ctyr/.test(playerHdr) ? "doubles" : "singles";
+
+  return {
+    status: "ok", tournament, type, currentTurn,
+    totalRounds: null, prized, idtourney, headers, rankIndex, playerIndex, details, standings,
+    _diag: { tablesFound, rowsParsed: standings.length, idtourney, currentTurn, prized, type },
+  };
+}
+
+function parseMatches(html){
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  if (isAnubis(doc)) return [];
+
+  const table = doc.querySelector("table.matches") || doc.querySelector("table.boards");
+  if (!table) return [];
+
+  const bodyRows = [...table.querySelectorAll("tbody tr")];
+  const rows = bodyRows.length ? bodyRows : [...table.querySelectorAll("tr")].slice(1);
+
+  return rows
+    .map((tr, i) => {
+      const pick = (sel) => { const el = tr.querySelector(sel); return el ? cleanText(el.textContent) : ""; };
+      let c1 = pick(".competitor1, .player1, td.competitor1, th.competitor1");
+      let c2 = pick(".competitor2, .player2, td.competitor2, th.competitor2");
+      let s1 = pick(".score1");
+      let s2 = pick(".score2");
+
+      if (!c1 && !c2){
+        const cells = [...tr.querySelectorAll("td, th")].map((c) => cleanText(c.textContent));
+        const namesArr = cells.filter((v) => /[a-zčďěňřšťůžá-ž]/i.test(v) && !/^\d+$/.test(v));
+        const nums = cells.filter((v) => /^-?\d+$/.test(v));
+        c1 = namesArr[0] || "";
+        c2 = namesArr[1] || "";
+        if (s1 === "") s1 = nums[0] ?? "";
+        if (s2 === "") s2 = nums[1] ?? "";
+      }
+
+      if (!c1 && !c2) return null;
+      const boardTxt = pick(".round-number, .board, td.round-number");
+      const board = num(boardTxt) ?? i + 1;
+      const n1 = num(s1);
+      const n2 = num(s2);
+      const isPartial = tr.classList && tr.classList.contains("partial-score");
+      const hasScores = n1 != null && n2 != null;
+      const finished = !isPartial && hasScores;
+      const phantom = /phantom|^—|\bbye\b/i.test(c1 + " " + c2) || !c1 || !c2;
+      return {
+        board,
+        side1: splitNamesParse(c1),
+        side2: splitNamesParse(c2),
+        score1: n1 != null ? n1 : 0,
+        score2: n2 != null ? n2 : 0,
+        finished,
+        winner: finished ? (n1 > n2 ? 1 : n2 > n1 ? 2 : 0) : 0,
+        phantom,
+      };
+    })
+    .filter(Boolean);
+}
+
+function pickRankingTable(doc){
+  const tables = [...doc.querySelectorAll("table")];
+  let best = null, bestScore = -1;
+  for (const t of tables){
+    const head = (t.querySelector("tr")?.textContent || "").toLowerCase();
+    let score = t.querySelectorAll("tr").length;
+    if (/team|player|name|competitor/.test(head)) score += 100;
+    if (/pts|points|score|net/.test(head)) score += 100;
+    if (score > bestScore){ bestScore = score; best = t; }
+  }
+  return best;
+}
+
+function readHeaders(table){
+  const headRow = table.querySelector("thead tr") || table.querySelector("tr");
+  return headRow ? [...headRow.querySelectorAll("th, td")].map((c) => cleanText(c.textContent)) : [];
+}
+
+function findHeader(headers, keys, fallback){
+  const norm = headers.map(normalize);
+  for (const k of keys){ const i = norm.indexOf(k); if (i !== -1) return i; }
+  return fallback;
+}
+
+function detectCurrentTurn(doc){
+  const black = doc.querySelector('a.black[href*="turn="], a.button.black[href*="turn="]');
+  if (black){ const m = black.getAttribute("href").match(/turn=(\d+)/); if (m) return Number(m[1]); }
+  let max = null;
+  for (const a of doc.querySelectorAll('a[href*="turn="]')){
+    const m = a.getAttribute("href").match(/turn=(\d+)/);
+    if (m){ const n = Number(m[1]); if (max == null || n > max) max = n; }
+  }
+  return max;
+}
+
+function extractIdTourney(doc){
+  const a = doc.querySelector('a[href*="idtourney="]') || doc.querySelector('a[href*="countdown"]');
+  if (a){ const m = (a.getAttribute("href") || "").match(/idtourney=(\d+)/); if (m) return m[1]; }
+  return null;
+}
+
+function parseDetails(doc){
+  const out = {};
+  for (const t of doc.querySelectorAll("table.definition")){
+    for (const tr of t.querySelectorAll("tr")){
+      const tds = tr.querySelectorAll("td");
+      if (tds.length >= 2){
+        const k = normalize(tds[0].textContent);
+        const v = cleanText(tds[1].textContent);
+        if (k && v && !out[k]) out[k] = v;
+      }
+    }
+  }
+  return out;
+}
+
+function isAnubis(doc){
+  const t = (doc.title + " " + (doc.body?.textContent || "")).slice(0, 2000).toLowerCase();
+  return /anubis|not a bot|proof[- ]of[- ]work/.test(t) && !doc.querySelector("table");
+}
+
+function emptyTourney(status, tournament, tablesFound){
+  return {
+    status, tournament, type: "singles", currentTurn: null, totalRounds: null,
+    prized: false, idtourney: null, headers: [], rankIndex: 0, playerIndex: 1,
+    details: {}, standings: [], _diag: { tablesFound },
+  };
+}
+
+function splitNamesParse(name){
+  return String(name || "").split(/\s+and\s+|\s*\/\s*|\s*&\s*/i).map((s) => s.trim()).filter(Boolean);
+}
+function normalize(s){ return String(s || "").toLowerCase().replace(/[^a-z0-9+#/]/g, "").trim(); }
+function cleanText(s){ return String(s || "").replace(/\s+/g, " ").trim(); }
+function num(s){
+  if (s == null || s === "") return null;
+  const n = parseFloat(String(s).replace(",", ".").replace(/[^\d.+-]/g, ""));
+  return Number.isFinite(n) ? n : null;
+}
+
+/* ============================================================================
+   4) COUNTDOWN parser — ported verbatim from src/countdown.js.
+   ============================================================================ */
+function parseCountdown(html){
+  let m = html.match(/new\s+Countdown\(\s*['"][^'"]*['"]\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*(false|[\d.]+)/i);
+  if (m){
+    const durationMin = parseFloat(m[1]);
+    const prealarmMin = parseFloat(m[2]);
+    const elapsedMs = m[3] === "false" ? null : parseFloat(m[3]); // 4th arg is MILLISECONDS
+    if (elapsedMs == null){
+      return { mode: "ready", durationMin, prealarmMin, startedAtISO: null, elapsedSec: null };
+    }
+    const startedAtISO = new Date(Date.now() - elapsedMs).toISOString();
+    const over = elapsedMs >= durationMin * 60 * 1000;
+    return { mode: over ? "over" : "running", durationMin, prealarmMin, startedAtISO, elapsedSec: Math.round(elapsedMs / 1000) };
+  }
+  m = html.match(/new\s+PreCountdown\(\s*['"][^'"]*['"]\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i);
+  if (m){
+    return { mode: "prepare", durationMin: parseFloat(m[1]), prealarmMin: parseFloat(m[2]), startedAtISO: new Date().toISOString() };
+  }
+  return null;
+}
+
+/* ============================================================================
+   5) buildCorridor — ported verbatim from src/adapt.js.
+   ============================================================================ */
+function buildCorridor(rank, matches, clock){
+  const headers = (rank.headers || []).map((h) => String(h).toLowerCase().replace(/[^a-z0-9]/g, ""));
+  const colOf = (...ns) => { for (const n of ns){ const i = headers.indexOf(n); if (i !== -1) return i; } return -1; };
+  const ptsI = colOf("pts", "points", "score");
+  const bchI = colOf("bch", "byes", "bye", "buchholz");
+  const netI = colOf("net", "spread", "diff");
+  const type = rank.type || "singles";
+  const splitNames = (name) =>
+    type === "doubles"
+      ? String(name || "").split(/\s+and\s+|\s*\/\s*|\s*&\s*/i).map((s) => s.trim()).filter(Boolean)
+      : [name];
+
+  const standings = (rank.standings || []).map((s) => ({
+    rank: s.rank, players: splitNames(s.player),
+    pts: numFrom(s.cells, ptsI), bch: numFrom(s.cells, bchI), net: numFrom(s.cells, netI),
+  }));
+
+  let effectiveClock = rank.prized ? null : clock || null;
+
+  if (effectiveClock && effectiveClock.mode === "ready"){
+    const anyScored = (matches || []).some((m) => !m.phantom && (m.finished || m.score1 !== 0 || m.score2 !== 0));
+    if (anyScored) effectiveClock = { ...effectiveClock, mode: "over" };
+  }
+
+  const state = rank.prized
+    ? "final"
+    : effectiveClock
+      ? effectiveClock.mode
+      : rank.currentTurn
+        ? "idle"
+        : "pre";
+
+  return {
+    event: {
+      name: rank.tournament || "Tournament", type,
+      currentRound: rank.currentTurn, totalRounds: rank.totalRounds != null ? rank.totalRounds : null,
+      location: rank.details?.location || "", club: rank.details?.club || "", system: rank.details?.system || "",
+    },
+    clock: effectiveClock, matches: matches || [], standings, state, updatedISO: new Date().toISOString(),
+  };
+}
+function numFrom(cells, i){
+  if (i < 0 || !cells) return "";
+  const v = cells[i];
+  const n = parseFloat(String(v).replace(",", "."));
+  return Number.isFinite(n) ? n : v != null ? v : "";
+}
+
+/* ============================================================================
+   6) POLL LOOP — the same 5-step flow as background.js, but everything runs
+   in this page (no offscreen, no chrome.storage).
+   ============================================================================ */
+let learnedId = null; // { url, id } — cached per target URL, survives between rounds
+let polling = false;
+
+function withTurn(base, turn){
+  const u = new URL(base);
+  u.searchParams.set("turn", turn);
+  u.searchParams.set("_", Date.now()); // cache-buster: scores change within a round
+  return u.href;
+}
+
+async function poll(){
+  if (polling) return;
+  polling = true;
+  try {
+    if (!CONFIG.targetUrl || /REPLACE_WITH_TOURNEY_GUID/.test(CONFIG.targetUrl)){
+      showEmpty({ state: "error", message: "Set CONFIG.targetUrl (or ?url=…) to your /lit/tourney/<guid> page." });
+      return;
+    }
+
+    // 1) Ranking / meta page. Auto-solves Anubis if needed.
+    const res = await fetchWithSolve(CONFIG.targetUrl);
+    if (res.anubis){
+      if (!everRendered) showEmpty({ state: "anubis", message: "Anubis challenge — retrying…" });
+      applyStatus({ state: "anubis", message: "Anubis — reconnecting…" });
+      return;
+    }
+    if (!res.ok) throw new Error("HTTP " + res.httpStatus);
+
+    const rank = parseTourney(res.html);
+    if (rank.status === "anubis"){
+      if (!everRendered) showEmpty({ state: "anubis", message: "Anubis challenge — retrying…" });
+      applyStatus({ state: "anubis", message: "Anubis — reconnecting…" });
+      return;
+    }
+
+    // idtourney resolution: fresh page id → per-URL learned cache → manual config.
+    const manual = CONFIG.idtourney && String(CONFIG.idtourney).trim();
+    const learnedForThis = learnedId && learnedId.url === CONFIG.targetUrl ? learnedId.id : null;
+    const idt = rank.idtourney || learnedForThis || manual || null;
+    if (rank.idtourney && (!learnedId || learnedId.id !== rank.idtourney || learnedId.url !== CONFIG.targetUrl)){
+      learnedId = { url: CONFIG.targetUrl, id: rank.idtourney };
+    }
+
+    // 2) Current turn's boards (live matches). Best-effort; never blocks the poll.
+    let matches = [];
+    if (rank.currentTurn != null){
+      try {
+        const tr = await fetchTarget(withTurn(CONFIG.targetUrl, rank.currentTurn));
+        if (tr.ok && !tr.anubis) matches = parseMatches(tr.html);
+      } catch (e) { console.warn("[turn] fetch/parse failed:", e); }
+    }
+
+    // 3) Countdown / timer. Public page; needs the integer idtourney.
+    let clock = null;
+    if (idt){
+      try {
+        const cdU = new URL("/tourney/countdown", CONFIG.targetUrl);
+        cdU.searchParams.set("idtourney", idt);
+        cdU.searchParams.set("_", Date.now()); // cache-buster: same URL every round
+        const cd = await fetchTarget(cdU.href);
+        if (cd.ok && !cd.anubis) clock = parseCountdown(cd.html);
+      } catch (e) { console.warn("[countdown] fetch/parse failed:", e); }
+    }
+
+    // 4) Assemble + render.
+    const data = buildCorridor(rank, matches, clock);
+    data.sourceUrl = CONFIG.targetUrl;
+    data.idtourney = idt;
+    if (CONFIG.totalRounds) data.event.totalRounds = Number(CONFIG.totalRounds) || data.event.totalRounds;
+    start(data);
+    applyStatus({ state: "ok", message: "" });
+  } catch (e) {
+    console.error("[poll] failed:", e);
+    // Keep the last good board on screen; only blank out if we never rendered.
+    if (!everRendered) showEmpty({ state: "error", message: String(e.message || e) });
+    applyStatus({ state: "error", message: String(e.message || e) });
+  } finally {
+    polling = false;
+  }
+}
+
+/* ============================================================================
+   7) RENDER / TICK / AUTOSCROLL — ported from dashboard/dashboard.js.
+   ============================================================================ */
+const LABELS = {
+  round: "Round", remaining: "remaining", liveMatches: "Live matches", standings: "Standings",
+  running: "In progress", prealarm: "No more new boards", time: "Round ended",
+  nextRound: "Next round", prealarmIn: "prealarm in", nextRoundAt: "next round ~",
+  updated: "updated", finished: "Finished", inProgress: "In progress", bye: "Bye",
+  pts: "Pts", bch: "Bch", net: "Net", page: "page", source: "source",
+};
+
+const SCROLL_SPEED = 28;      // px/sec vertical drift
+const SCROLL_PAUSE_MS = 2000; // pause at top and bottom
+const SCROLL_FRAME_MS = 50;   // ~20fps cap; drift is slow so fewer frames look identical, ~1/3 less GPU
+const BREAK_MIN = 10;         // assumed break between rounds for the "next round ~" estimate
+
+let DATA = null;
+let clockTimer = null;
+let everRendered = false;
+
+function pad(n){ return String(n).padStart(2, "0"); }
+function mmss(sec){ sec = Math.max(0, Math.round(sec)); return pad(Math.floor(sec / 60)) + ":" + pad(sec % 60); }
+function hhmm(d){ return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+function round5(d){ const ms = 5 * 60 * 1000; return new Date(Math.round(d.getTime() / ms) * ms); }
+function esc(s){ return String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
+function fmtName(full){
+  const s = String(full || "").trim();
+  if (!s) return "";
+  const i = s.indexOf(" ");
+  if (i < 0) return '<b class="sn">' + esc(s) + "</b>";
+  return '<b class="sn">' + esc(s.slice(0, i)) + "</b> " + esc(s.slice(i + 1));
+}
+function names(side){
+  return '<span class="names">' + (side || []).map(fmtName).join('<span class="vs">/</span>') + "</span>";
+}
+
+function start(data){
+  DATA = data;
+  everRendered = true;
+  renderStatic();
+  renderMatches();
+  renderStandings();
+  layoutPanels();
+  refreshFooter();
+
+  if (clockTimer){ clearInterval(clockTimer); clockTimer = null; }
+  const bar = document.getElementById("timerbar");
+  if (DATA.clock){
+    bar.style.display = "";
+    if (!DATA.clock.mode) DATA.clock.mode = "running";
+    tick();
+    clockTimer = setInterval(tick, 1000);
+  } else {
+    bar.style.display = "none";
+    document.getElementById("clockAux").innerHTML = "";
+  }
+}
+
+/* Auto-scroll a panel body: drift the .scroller down at SCROLL_SPEED, pause at the
+   bottom, drift back up, pause at the top, repeat. The rows move via a GPU-composited
+   transform (no per-frame scroll repaint); the panel header stays fixed outside .scroller.
+   Time-based, so it's independent of frame rate, and it re-queries .scroller every tick so
+   innerHTML re-renders don't disturb the loop. */
+function attachAutoScroll(el){
+  if (!el) return;
+  let pos = 0, dir = 1, pauseUntil = 0, last = null, inner = null, written = null;
+  function frame(ts){
+    requestAnimationFrame(frame);
+    const cur = el.querySelector(".scroller");
+    if (!cur){ last = null; return; }                    // nothing rendered yet
+    if (cur !== inner){ inner = cur; written = null; }    // re-rendered: reapply transform
+    const clip = inner.parentNode;
+    if (last == null){ last = ts; return; }
+    const dt = ts - last;
+    if (dt < SCROLL_FRAME_MS) return;                     // throttle below the display refresh rate
+    last = ts;
+    const max = inner.offsetHeight - clip.clientHeight;
+    if (max <= 1){ if (written !== 0){ inner.style.transform = "translateY(0)"; written = 0; } pos = 0; dir = 1; pauseUntil = 0; return; }
+    if (pos > max) pos = max;
+    if (ts < pauseUntil) return;
+    pos += dir * SCROLL_SPEED * (dt / 1000);
+    if (pos >= max){ pos = max; dir = -1; pauseUntil = ts + SCROLL_PAUSE_MS; }
+    else if (pos <= 0){ pos = 0; dir = 1; pauseUntil = ts + SCROLL_PAUSE_MS; }
+    const next = Math.round(pos);
+    if (next !== written){ inner.style.transform = "translateY(" + (-next) + "px)"; written = next; }  // skip redundant frames
+  }
+  requestAnimationFrame(frame);
+}
+
+function topStatus(d){
+  const r = d.event.currentRound, tot = d.event.totalRounds;
+  const rnd = r == null ? "" : (tot != null ? "Round " + r + " / " + tot : "Round " + r);
+  switch (d.state){
+    case "final":    return "Final results";
+    case "running":  return rnd + " · in progress";
+    case "prealarm": return rnd + " · prealarm";
+    case "over":     return rnd + " · round ended";
+    case "ready":    return rnd + " · prepared";
+    case "prepare":  return r != null ? "Preparing round " + r : "Preparing next round";
+    case "pre":      return "Before first round";
+    default:         return rnd || "In progress";
+  }
+}
+
+function renderStatic(){
+  const e = DATA.event;
+  document.getElementById("eventName").textContent = e.name || "SoL Live";
+  const typeLbl = e.type === "doubles" ? "Doubles" : "Singles";
+  document.getElementById("eventSub").textContent =
+    topStatus(DATA) + " · " + typeLbl + (e.location ? " · " + e.location : "");
+  document.getElementById("matchesTitle").textContent = LABELS.liveMatches;
+  document.title = (e.name || "SoL Live") + " — Corridor Dashboard";
+}
+
+function matchColumns(n){ return n >= 30 ? 3 : n >= 15 ? 2 : 1; }
+
+function layoutPanels(){
+  const list = DATA.matches || [];
+  const hasMatches = list.length > 0;
+  const cols = matchColumns(list.length);
+  const m = document.getElementById("matchesPanel");
+  const s = document.getElementById("standingsPanel");
+  const main = document.querySelector("main");
+  s.style.display = "";
+  m.style.display = hasMatches ? "" : "none";
+  main.style.gridTemplateColumns = hasMatches ? (cols + "fr 1fr") : "1fr";
+}
+
+function renderMatches(){
+  const list = DATA.matches || [];
+  const body = document.getElementById("matchesBody");
+  const teamLabel = DATA.event.type === "doubles" ? "Team" : "Player";
+  const headCell = '<div class="match head">' +
+      '<div class="board">Board</div>' +
+      '<div class="sides"><div class="side"><span class="names">' + teamLabel + "</span>" +
+        '<span class="sc">Score</span></div></div>' +
+      '<div class="badges"></div>' +
+    "</div>";
+  const cols = matchColumns(list.length);
+  const rows = Math.ceil(list.length / cols) || 1;
+  const colHtml = [];
+  for (let c = 0; c < cols; c++){
+    const slice = list.slice(c * rows, (c + 1) * rows);
+    colHtml.push('<div class="mcol">' + slice.map(renderMatchRow).join("") + "</div>");
+  }
+  const gt = "grid-template-columns:repeat(" + cols + ",1fr)";
+  body.innerHTML = '<div class="mhead" style="' + gt + '">' + headCell.repeat(cols) + "</div>" +
+    '<div class="sclip"><div class="scroller">' +
+      '<div class="mgrid" style="' + gt + '">' + colHtml.join("") + "</div>" +
+    "</div></div>";
+  const remaining = list.filter((m) => !m.finished && !m.phantom).length;
+  document.getElementById("matchesPg").textContent = remaining + " " + LABELS.remaining;
+}
+
+function renderMatchRow(m){
+  const s1win = m.finished && m.winner === 1, s2win = m.finished && m.winner === 2;
+  const started = DATA.state !== "ready" && DATA.state !== "prepare" && DATA.state !== "pre";
+  let badge;
+  if (m.phantom) badge = '<span class="badge bye" title="' + LABELS.bye + '">—</span>';
+  else if (m.finished) badge = '<span class="badge fin" title="' + LABELS.finished + '">✓</span>';
+  else if (started) badge = '<span class="badge live" title="' + LABELS.inProgress + '"><span class="statedot"></span></span>';
+  else badge = '<span class="badge sched">&nbsp;</span>';
+  return "" +
+    '<div class="match">' +
+      '<div class="board">B' + m.board + "</div>" +
+      '<div class="sides">' +
+        '<div class="side' + (s1win ? " win" : "") + '">' + names(m.side1) + '<span class="sc">' + m.score1 + "</span></div>" +
+        '<div class="side' + (s2win ? " win" : "") + '">' + names(m.side2) + '<span class="sc">' + m.score2 + "</span></div>" +
+      "</div>" +
+      '<div class="badges">' + badge + "</div>" +
+    "</div>";
+}
+
+function renderStandings(){
+  const list = DATA.standings || [];
+  const rows = list.map((r) => {
+    const chip = r.rank <= 3 ? ("rankchip r" + r.rank) : "rankchip";
+    return "<tr>" +
+      '<td class="r"><span class="' + chip + '">' + r.rank + "</span></td>" +
+      '<td class="name">' + names(r.players) + "</td>" +
+      '<td class="pts">' + r.pts + "</td>" +
+      '<td class="num">' + r.bch + "</td>" +
+      '<td class="num">' + r.net + "</td>" +
+    "</tr>";
+  }).join("");
+  const cg = '<colgroup><col class="cg-r"><col class="cg-name"><col class="cg-pts"><col class="cg-num"><col class="cg-num"></colgroup>';
+  document.getElementById("standingsBody").innerHTML =
+    '<table class="rank rank-head">' + cg + "<thead><tr>" +
+      '<th class="r">#</th><th class="name">' + (DATA.event.type === "doubles" ? "Team" : "Player") + "</th>" +
+      "<th>" + LABELS.pts + "</th><th>" + LABELS.bch + "</th><th>" + LABELS.net + "</th>" +
+    "</tr></thead></table>" +
+    '<div class="sclip"><div class="scroller">' +
+      '<table class="rank rank-body">' + cg + "<tbody>" + rows + "</tbody></table>" +
+    "</div></div>";
+  document.getElementById("standingsPg").textContent =
+    list.length + (DATA.event.type === "doubles" ? " teams" : " players");
+}
+
+function tick(){
+  const c = DATA.clock;
+  const bar = document.getElementById("timerbar");
+  const tEl = document.getElementById("clockTime");
+  const sEl = document.getElementById("clockState");
+  const aux = document.getElementById("clockAux");
+  bar.classList.remove("state-running", "state-prealarm", "state-time", "state-next", "state-ended");
+
+  if (c.mode === "ready" || c.mode === "prepare"){
+    bar.classList.add("state-next");
+    tEl.textContent = mmss((c.durationMin || 0) * 60);
+    sEl.textContent = c.mode === "prepare" ? LABELS.nextRound : "Round prepared";
+    aux.innerHTML = "";
+    return;
+  }
+
+  if (c.mode === "over"){
+    bar.classList.add("state-ended");
+    tEl.textContent = "00:00";
+    sEl.textContent = LABELS.time;
+    aux.innerHTML = "";
+    return;
+  }
+
+  const started = new Date(c.startedAtISO).getTime();
+  const durSec = c.durationMin * 60, preSec = c.prealarmMin * 60;
+  const remaining = durSec - (Date.now() - started) / 1000;
+  aux.innerHTML = '<span class="nrlabel">' + LABELS.nextRound + "</span><b>~" +
+    hhmm(round5(new Date(started + (durSec + BREAK_MIN * 60) * 1000))) + "</b>";
+
+  if (remaining > preSec){
+    bar.classList.add("state-running");
+    tEl.textContent = mmss(remaining);
+    sEl.textContent = LABELS.running;
+  } else if (remaining > 0){
+    bar.classList.add("state-prealarm");
+    tEl.textContent = mmss(remaining);
+    sEl.innerHTML = '<span class="statedot"></span>' + LABELS.prealarm;
+  } else {
+    bar.classList.add("state-ended");
+    tEl.textContent = "00:00";
+    sEl.textContent = LABELS.time;
+  }
+}
+
+function refreshFooter(){
+  const el = document.getElementById("updated");
+  if (!DATA || !DATA.updatedISO){ el.textContent = ""; return; }
+  el.textContent = LABELS.updated + " " + hhmm(new Date(DATA.updatedISO));
+}
+
+function applyStatus(status){
+  const note = document.getElementById("dashstatus");
+  if (!note) return;
+  if (status && status.state === "anubis") note.textContent = "⚠ " + (status.message || "Anubis — reconnecting…");
+  else if (status && status.state === "error") note.textContent = "⚠ " + (status.message || "error");
+  else note.textContent = "";
+}
+
+// Small helper to surface solve progress in the footer without blanking the board.
+function logStatus(msg){ applyStatus({ state: "anubis", message: msg }); }
+
+function showEmpty(status){
+  DATA = { event: { name: "", type: "singles", currentRound: null, totalRounds: null, location: "", club: "", system: "" },
+           clock: null, matches: [], standings: [], state: "idle", updatedISO: null };
+  renderMatches();
+  renderStandings();
+  layoutPanels();
+  document.getElementById("timerbar").style.display = "none";
+  document.getElementById("clockAux").innerHTML = "";
+  const anubis = status && status.state === "anubis";
+  document.getElementById("eventName").textContent = anubis ? "Reconnecting to SoL…" : "Waiting for SoL…";
+  document.getElementById("eventSub").textContent = anubis
+    ? (status.message || "Re-solving the Anubis challenge…")
+    : (status && status.state === "error" ? String(status.message || "") : "");
+  document.title = "SoL Live Dashboard";
+  refreshFooter();
+  applyStatus(status);
+}
+
+/* ============================================================================
+   8) BOOT
+   ============================================================================ */
+showEmpty({}); // "Waiting for SoL…"
+attachAutoScroll(document.getElementById("matchesBody"));
+attachAutoScroll(document.getElementById("standingsBody"));
+poll();
+setInterval(poll, Math.max(30, CONFIG.pollSeconds) * 1000);
+</script>
+</body>
+</html>
