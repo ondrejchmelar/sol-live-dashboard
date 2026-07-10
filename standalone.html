@@ -129,13 +129,16 @@ header.app .sub .dot{opacity:.55;margin:0 .45em}
 /* clock states */
 .state-running .time{color:var(--ink)}
 .state-running .state{color:var(--green)}
-.state-prealarm{animation:pulsebg 1.6s ease-in-out infinite}
+/* step-end keeps these looping animations discrete (value holds between keyframes),
+   so the compositor only produces a frame when the value flips (~2/s) instead of
+   repainting/swapping every vsync (60/s). Smooth interpolation here pins ~1 CPU core. */
+.state-prealarm{animation:pulsebg 1.6s step-end infinite}
 .state-prealarm .time{color:var(--orange)}
 .state-prealarm .state{color:var(--orange)}
 .state-time .time{color:var(--orange)}
 .state-time .state{color:var(--orange)}
 .state-ended .time,.state-ended .state{color:#e00516}
-.state-ended{animation:pulsebg-red 1.6s ease-in-out infinite}
+.state-ended{animation:pulsebg-red 1.6s step-end infinite}
 @keyframes pulsebg-red{0%,100%{background:#fff}50%{background:#ffe1e1}}
 .state-next .time{color:var(--blue-ink)}
 .state-next .state{color:var(--blue-ink)}
@@ -195,7 +198,7 @@ main{
 }
 .badge.fin{background:#e3f8ea;color:#067a2a}
 .badge.live{background:#fff0db;color:#a85e00}
-.badge.live .statedot{width:.55em;height:.55em;animation:blink 1.2s infinite}
+.badge.live .statedot{width:.55em;height:.55em;animation:blink 1.2s step-end infinite}
 .badge.bye{background:#eef1f5;color:var(--muted)}
 .badge .statedot{margin:0}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
@@ -232,7 +235,7 @@ footer.app{
   background:#0a3f78;color:#cfe0f5;font-size:clamp(.72rem,1.3vw,1rem);font-weight:600;
 }
 footer.app .live{color:#fff;font-weight:800;text-transform:uppercase;letter-spacing:.08em}
-footer.app .live .statedot{background:var(--green);animation:blink 1.6s infinite}
+footer.app .live .statedot{background:var(--green);animation:blink 1.6s step-end infinite}
 footer.app .src{margin-left:auto;opacity:.75}
 
 /* ---------- Responsive: stack on phones ---------- */
@@ -260,7 +263,7 @@ header.app .aux b{display:block;font-size:clamp(1rem,2.2vw,1.6rem);font-variant-
 .state-ended .time,.state-ended .state{color:#ff6b6b}
 .state-next .time,.state-next .state{color:#cfe0f5}
 .state-prealarm,.state-ended{animation:none}
-.state-ended .time,.state-ended .state{animation:textpulse 1.2s infinite}
+.state-ended .time,.state-ended .state{animation:textpulse 1.2s step-end infinite}
 @keyframes textpulse{0%,100%{opacity:1}50%{opacity:.45}}
 /* ---- Live matches column header ---- */
 .match.head{position:sticky;top:0;background:var(--panel);z-index:2;border-bottom:2px solid var(--line)}
@@ -838,7 +841,7 @@ const LABELS = {
 
 const SCROLL_SPEED = 28;      // px/sec vertical drift
 const SCROLL_PAUSE_MS = 2000; // pause at top and bottom
-const SCROLL_FRAME_MS = 33;   // ~30fps cap — keeps autoscroll off the display's full refresh rate
+const SCROLL_FRAME_MS = 50;   // ~20fps cap; drift is slow so fewer frames look identical, ~1/3 less GPU
 const BREAK_MIN = 10;         // assumed break between rounds for the "next round ~" estimate
 
 let DATA = null;

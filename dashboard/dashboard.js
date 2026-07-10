@@ -19,7 +19,7 @@ const SAMPLE="doubles";
 /* ---------- Auto-scroll config ---------- */
 const SCROLL_SPEED=28;       // px/sec vertical drift
 const SCROLL_PAUSE_MS=2000;  // pause at top and bottom
-const SCROLL_FRAME_MS=33;    // ~30fps cap — keeps autoscroll off the display's full refresh rate
+const SCROLL_FRAME_MS=50;    // ~20fps cap; drift is slow so fewer frames look identical, ~1/3 less GPU
 
 /* ============================================================
    Embedded sample datasets (mirror SoL / data.json shape).
