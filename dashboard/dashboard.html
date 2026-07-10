@@ -160,7 +160,16 @@ main{
 .badge.live .statedot{width:.55em;height:.55em;animation:blink 1.2s step-end infinite}
 .badge.bye{background:#eef1f5;color:var(--muted)}
 .badge .statedot{margin:0}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+/* Eased cosine "breathing" pulse held in discrete steps (see step-end note above):
+   16 opacity levels read as a smooth fade but emit ~14 frames/s instead of 60 — ~4x
+   cheaper on a weak integrated GPU, where a truly smooth pulse costs ~1 CPU core.
+   (Add/remove stops to trade smoothness vs frame rate.) */
+@keyframes blink{
+  0%,100%{opacity:1}  6.25%{opacity:.97} 12.5%{opacity:.89} 18.75%{opacity:.77}
+  25%{opacity:.62}   31.25%{opacity:.48} 37.5%{opacity:.36} 43.75%{opacity:.28}
+  50%{opacity:.25}   56.25%{opacity:.28} 62.5%{opacity:.36} 68.75%{opacity:.48}
+  75%{opacity:.62}   81.25%{opacity:.77} 87.5%{opacity:.89} 93.75%{opacity:.97}
+}
 
 /* ---------- Standings ---------- */
 table.rank{width:100%;border-collapse:collapse;table-layout:fixed;font-size:clamp(.85rem,1.6vw,1.35rem)}
