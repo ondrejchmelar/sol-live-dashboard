@@ -165,6 +165,10 @@ main{
 /* Auto-scroll: fixed header stays in .body; rows live in .scroller, moved via GPU transform inside the clipping .sclip */
 .panel .body .sclip{flex:1 1 auto;min-height:0;overflow:hidden;position:relative}
 .panel .body .scroller{will-change:transform}
+/* Multi-column standings (full width, no matches): pinned header row + column-major body.
+   padding-right keeps the last column's numbers off the panel edge (they'd otherwise clip). */
+.panel .body .scol-head,.panel .body .scol-grid{display:grid;gap:0 clamp(.7rem,1.8vw,1.6rem);padding-right:clamp(.35rem,.9vw,.7rem)}
+.panel .body .scol-grid{align-items:start}
 
 /* ---------- Match rows ---------- */
 .match{
@@ -341,7 +345,7 @@ table.rank td.name{font-weight:400}
     <div class="body" id="matchesBody"></div>
   </section>
   <section class="panel" id="standingsPanel">
-    <h2><span>Standings</span><span class="pginfo" id="standingsPg"></span></h2>
+    <h2><span id="standingsTitle">Standings</span><span class="pginfo" id="standingsPg"></span></h2>
     <div class="body" id="standingsBody"></div>
   </section>
 </main>
@@ -854,7 +858,7 @@ async function poll(){
    7) RENDER / TICK / AUTOSCROLL — ported from dashboard/dashboard.js.
    ============================================================================ */
 const LABELS = {
-  round: "Round", remaining: "remaining", liveMatches: "Live matches", standings: "Standings",
+  round: "Round", remaining: "remaining", liveMatches: "Live matches", standings: "Standings", players: "Players",
   running: "In progress", prealarm: "No more new boards", time: "Round ended",
   nextRound: "Next round", prealarmIn: "prealarm in", nextRoundAt: "next round ~",
   updated: "updated", finished: "Finished", inProgress: "In progress", bye: "Bye",
@@ -1023,27 +1027,64 @@ function renderMatchRow(m){
     "</div>";
 }
 
+// How many standings columns fit — driven by viewport WIDTH (not player count), so a wide
+// screen uses more columns. Capped so a column never gets absurdly short.
+// Wide columns so full names — and doubles "Name1 / Name2" pairs — stay readable:
+// ~2 columns at 1920, ~4 at 4K.
+const STAND_MIN_COL = 900;   // px: min width of a rank+name column
+function standingsCols(n){
+  const byWidth = Math.floor(window.innerWidth / STAND_MIN_COL);
+  return Math.max(1, Math.min(byWidth, Math.ceil(n / 4)));
+}
+
 function renderStandings(){
   const list = DATA.standings || [];
-  const rows = list.map((r) => {
-    const chip = r.rank <= 3 ? ("rankchip r" + r.rank) : "rankchip";
-    return "<tr>" +
-      '<td class="r"><span class="' + chip + '">' + r.rank + "</span></td>" +
-      '<td class="name">' + names(r.players) + "</td>" +
-      '<td class="pts">' + r.pts + "</td>" +
-      '<td class="num">' + r.bch + "</td>" +
-      '<td class="num">' + r.net + "</td>" +
-    "</tr>";
-  }).join("");
-  const cg = '<colgroup><col class="cg-r"><col class="cg-name"><col class="cg-pts"><col class="cg-num"><col class="cg-num"></colgroup>';
-  document.getElementById("standingsBody").innerHTML =
-    '<table class="rank rank-head">' + cg + "<thead><tr>" +
-      '<th class="r">#</th><th class="name">' + (DATA.event.type === "doubles" ? "Team" : "Player") + "</th>" +
-      "<th>" + LABELS.pts + "</th><th>" + LABELS.bch + "</th><th>" + LABELS.net + "</th>" +
-    "</tr></thead></table>" +
+  const hasMatches = (DATA.matches || []).length > 0;
+  const body = document.getElementById("standingsBody");
+  document.getElementById("standingsTitle").textContent = hasMatches ? LABELS.standings : LABELS.players;
+  const teamLabel = DATA.event.type === "doubles" ? "Team" : "Player";
+  const rcell = (r) => '<td class="r"><span class="' + (r.rank <= 3 ? "rankchip r" + r.rank : "rankchip") + '">' + r.rank + "</span></td>";
+  const single = (cg, thead, rows) =>
+    '<table class="rank rank-head">' + cg + thead + "</table>" +
     '<div class="sclip"><div class="scroller">' +
       '<table class="rank rank-body">' + cg + "<tbody>" + rows + "</tbody></table>" +
     "</div></div>";
+
+  if (hasMatches){
+    // Beside matches: full standings (pts/bch/net), single column.
+    const cg = '<colgroup><col class="cg-r"><col class="cg-name"><col class="cg-pts"><col class="cg-num"><col class="cg-num"></colgroup>';
+    const thead = "<thead><tr>" +
+      '<th class="r">#</th><th class="name">' + teamLabel + "</th>" +
+      "<th>" + LABELS.pts + "</th><th>" + LABELS.bch + "</th><th>" + LABELS.net + "</th></tr></thead>";
+    const rowHtml = (r) => "<tr>" + rcell(r) +
+      '<td class="name">' + names(r.players) + "</td>" +
+      '<td class="pts">' + r.pts + "</td><td class=\"num\">" + r.bch + '</td><td class="num">' + r.net + "</td></tr>";
+    body.innerHTML = single(cg, thead, list.map(rowHtml).join(""));
+  } else {
+    // No matches (e.g. before the first round): a plain player list — name only, no pts/bch/net —
+    // spread column-major across as many columns as the viewport fits.
+    const K = standingsCols(list.length);
+    const cg = '<colgroup><col class="cg-r"><col class="cg-name"></colgroup>';
+    const thead = '<thead><tr><th class="r">#</th><th class="name">' + teamLabel + "</th></tr></thead>";
+    const rowHtml = (r) => "<tr>" + rcell(r) + '<td class="name">' + names(r.players) + "</td></tr>";
+    if (K <= 1){
+      body.innerHTML = single(cg, thead, list.map(rowHtml).join(""));
+    } else {
+      const per = Math.ceil(list.length / K) || 1;
+      const heads = [], bodies = [];
+      for (let c = 0; c < K; c++){
+        const slice = list.slice(c * per, (c + 1) * per);
+        heads.push('<table class="rank rank-head">' + cg + thead + "</table>");
+        bodies.push('<table class="rank rank-body">' + cg + "<tbody>" + slice.map(rowHtml).join("") + "</tbody></table>");
+      }
+      const gt = "grid-template-columns:repeat(" + K + ",1fr)";
+      body.innerHTML =
+        '<div class="scol-head" style="' + gt + '">' + heads.join("") + "</div>" +
+        '<div class="sclip"><div class="scroller">' +
+          '<div class="scol-grid" style="' + gt + '">' + bodies.join("") + "</div>" +
+        "</div></div>";
+    }
+  }
   document.getElementById("standingsPg").textContent =
     list.length + (DATA.event.type === "doubles" ? " teams" : " players");
 }
@@ -1136,6 +1177,15 @@ attachAutoScroll(document.getElementById("matchesBody"));
 attachAutoScroll(document.getElementById("standingsBody"));
 poll();
 setInterval(poll, Math.max(30, CONFIG.pollSeconds) * 1000);
+
+// Re-flow the player-list columns when the viewport width changes (only matters with no matches).
+let _resizeT = null;
+addEventListener("resize", () => {
+  clearTimeout(_resizeT);
+  _resizeT = setTimeout(() => {
+    if (everRendered && DATA && !(DATA.matches || []).length) renderStandings();
+  }, 200);
+});
 </script>
 </body>
 </html>

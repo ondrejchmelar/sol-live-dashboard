@@ -124,6 +124,10 @@ main{
 /* Auto-scroll: fixed header stays in .body; rows live in .scroller, moved via GPU transform inside the clipping .sclip */
 .panel .body .sclip{flex:1 1 auto;min-height:0;overflow:hidden;position:relative}
 .panel .body .scroller{will-change:transform}
+/* Multi-column standings (full width, no matches): pinned header row + column-major body.
+   padding-right keeps the last column's numbers off the panel edge (they'd otherwise clip). */
+.panel .body .scol-head,.panel .body .scol-grid{display:grid;gap:0 clamp(.7rem,1.8vw,1.6rem);padding-right:clamp(.35rem,.9vw,.7rem)}
+.panel .body .scol-grid{align-items:start}
 
 /* ---------- Match rows ---------- */
 .match{
@@ -302,7 +306,7 @@ table.rank td.name{font-weight:400}
     <div class="body" id="matchesBody"></div>
   </section>
   <section class="panel" id="standingsPanel">
-    <h2><span>Standings</span><span class="pginfo" id="standingsPg"></span></h2>
+    <h2><span id="standingsTitle">Standings</span><span class="pginfo" id="standingsPg"></span></h2>
     <div class="body" id="standingsBody"></div>
   </section>
 </main>
