@@ -43,13 +43,18 @@ export function buildCorridor(rank, matches, clock) {
     if (anyScored) effectiveClock = { ...effectiveClock, mode: 'over' };
   }
 
+  // First-round / between-round detection: when no clock is up but the tourney page carries a
+  // "Preparing…" (pre_countdown) link, label it as preparing. We can't show a live timer — the
+  // pre_countdown page has no server anchor and its duration lives only in that link's URL.
   const state = rank.prized
     ? 'final'
     : effectiveClock
-      ? effectiveClock.mode // running | prepare | ready | over
-      : rank.currentTurn
-        ? 'idle'
-        : 'pre';
+      ? effectiveClock.mode // running | ready | over
+      : rank.preCountdown
+        ? 'prepare'
+        : rank.currentTurn
+          ? 'idle'
+          : 'pre';
 
   return {
     event: {

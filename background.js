@@ -183,7 +183,7 @@ async function runPoll(trigger) {
         else if (!cd.ok) clockNote = 'Countdown page HTTP ' + cd.httpStatus + ' (id ' + idt + ').';
         else {
           clock = parseCountdown(cd.html);
-          if (!clock) clockNote = 'Countdown format not recognised (id ' + idt + ') — see debug export.';
+          if (!clock && !rank.preCountdown) clockNote = 'Countdown format not recognised (id ' + idt + ') — see debug export.';
         }
         await setDebug({
           lastCountdown: {
@@ -196,7 +196,7 @@ async function runPoll(trigger) {
         clockNote = 'Countdown fetch failed: ' + String(e.message || e);
         logger.warn('clock', 'fetch/parse failed', { error: String(e.message || e) });
       }
-    } else {
+    } else if (!rank.preCountdown) {
       clockNote = 'No tourney id — set it in Options to show the timer before the round clock starts.';
     }
 

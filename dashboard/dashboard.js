@@ -208,7 +208,7 @@ function topStatus(d){
     case "prealarm": return rnd+" · prealarm";
     case "over":     return rnd+" · round ended";
     case "ready":    return rnd+" · prepared";
-    case "prepare":  return r!=null ? "Preparing round "+r : "Preparing next round";
+    case "prepare":  return r!=null ? "Preparing round "+r : "Preparing the first round";
     case "pre":      return "Before first round";
     default:         return rnd || "In progress";
   }
@@ -325,12 +325,11 @@ function tick(){
   const aux=document.getElementById("clockAux");
   bar.classList.remove("state-running","state-prealarm","state-time","state-next","state-ended");
 
-  // Round prepared but clock not started, or a between-rounds pre-countdown:
-  // show the full duration with a waiting label, no live counting.
-  if(c.mode==="ready" || c.mode==="prepare"){
+  // Round prepared but clock not started — show the full duration, no live counting.
+  if(c.mode==="ready"){
     bar.classList.add("state-next");
     tEl.textContent=mmss((c.durationMin||0)*60);
-    sEl.textContent=c.mode==="prepare"?LABELS.nextRound:"Round prepared";
+    sEl.textContent="Round prepared";
     aux.innerHTML="";
     return;
   }

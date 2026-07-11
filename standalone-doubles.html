@@ -509,11 +509,14 @@ function parseTourney(html){
   const table = doc.querySelector("table.ranking") || pickRankingTable(doc);
   const details = parseDetails(doc);
   const idtourney = extractIdTourney(doc);
+  const preCountdown = extractPreCountdown(doc);
   const currentTurn = detectCurrentTurn(doc);
 
   if (!table){
+    // Before the first round there is no ranking table yet — still surface the prep timer.
     const t = emptyTourney("empty", tournament, tablesFound);
     t.idtourney = idtourney;
+    t.preCountdown = preCountdown;
     t.currentTurn = currentTurn;
     t.details = details;
     return t;
@@ -542,7 +545,7 @@ function parseTourney(html){
 
   return {
     status: "ok", tournament, type, currentTurn,
-    totalRounds: null, prized, idtourney, headers, rankIndex, playerIndex, details, standings,
+    totalRounds: null, prized, idtourney, preCountdown, headers, rankIndex, playerIndex, details, standings,
     _diag: { tablesFound, rowsParsed: standings.length, idtourney, currentTurn, prized, type },
   };
 }
@@ -639,6 +642,20 @@ function extractIdTourney(doc){
   return null;
 }
 
+// While a round is being prepared, the tourney page links to the pre-round timer:
+//   /tourney/pre_countdown?idtourney=…&duration=<min>&prealarm=<min>
+// That page has NO server anchor (new PreCountdown(dur, pre) starts at page load), so we
+// read duration/prealarm from this link and anchor the countdown locally in poll().
+function extractPreCountdown(doc){
+  const a = doc.querySelector('a[href*="pre_countdown"]');
+  if (!a) return null;
+  const href = a.getAttribute("href") || "";
+  const dm = href.match(/[?&]duration=([\d.]+)/);
+  if (!dm) return null;
+  const pm = href.match(/[?&]prealarm=([\d.]+)/);
+  return { durationMin: parseFloat(dm[1]), prealarmMin: pm ? parseFloat(pm[1]) : 0 };
+}
+
 function parseDetails(doc){
   const out = {};
   for (const t of doc.querySelectorAll("table.definition")){
@@ -662,7 +679,7 @@ function isAnubis(doc){
 function emptyTourney(status, tournament, tablesFound){
   return {
     status, tournament, type: "singles", currentTurn: null, totalRounds: null,
-    prized: false, idtourney: null, headers: [], rankIndex: 0, playerIndex: 1,
+    prized: false, idtourney: null, preCountdown: null, headers: [], rankIndex: 0, playerIndex: 1,
     details: {}, standings: [], _diag: { tablesFound },
   };
 }
@@ -679,26 +696,22 @@ function num(s){
 }
 
 /* ============================================================================
-   4) COUNTDOWN parser — ported verbatim from src/countdown.js.
+   4) COUNTDOWN parser — the running-round clock at /tourney/countdown.
+   (The pre-round PreCountdown is handled separately via the page's pre_countdown
+   link — see extractPreCountdown/poll — since that page carries no server anchor.)
    ============================================================================ */
 function parseCountdown(html){
-  let m = html.match(/new\s+Countdown\(\s*['"][^'"]*['"]\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*(false|[\d.]+)/i);
-  if (m){
-    const durationMin = parseFloat(m[1]);
-    const prealarmMin = parseFloat(m[2]);
-    const elapsedMs = m[3] === "false" ? null : parseFloat(m[3]); // 4th arg is MILLISECONDS
-    if (elapsedMs == null){
-      return { mode: "ready", durationMin, prealarmMin, startedAtISO: null, elapsedSec: null };
-    }
-    const startedAtISO = new Date(Date.now() - elapsedMs).toISOString();
-    const over = elapsedMs >= durationMin * 60 * 1000;
-    return { mode: over ? "over" : "running", durationMin, prealarmMin, startedAtISO, elapsedSec: Math.round(elapsedMs / 1000) };
+  const m = html.match(/new\s+Countdown\(\s*['"][^'"]*['"]\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*(false|[\d.]+)/i);
+  if (!m) return null;
+  const durationMin = parseFloat(m[1]);
+  const prealarmMin = parseFloat(m[2]);
+  const elapsedMs = m[3] === "false" ? null : parseFloat(m[3]); // 4th arg is MILLISECONDS
+  if (elapsedMs == null){
+    return { mode: "ready", durationMin, prealarmMin, startedAtISO: null, elapsedSec: null };
   }
-  m = html.match(/new\s+PreCountdown\(\s*['"][^'"]*['"]\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i);
-  if (m){
-    return { mode: "prepare", durationMin: parseFloat(m[1]), prealarmMin: parseFloat(m[2]), startedAtISO: new Date().toISOString() };
-  }
-  return null;
+  const startedAtISO = new Date(Date.now() - elapsedMs).toISOString();
+  const over = elapsedMs >= durationMin * 60 * 1000;
+  return { mode: over ? "over" : "running", durationMin, prealarmMin, startedAtISO, elapsedSec: Math.round(elapsedMs / 1000) };
 }
 
 /* ============================================================================
@@ -728,13 +741,18 @@ function buildCorridor(rank, matches, clock){
     if (anyScored) effectiveClock = { ...effectiveClock, mode: "over" };
   }
 
+  // First-round / between-round detection: when no clock is up but the tourney page carries a
+  // "Preparing…" (pre_countdown) link, label it as preparing. We can't show a live timer — the
+  // pre_countdown page has no server anchor and its duration lives only in that link's URL.
   const state = rank.prized
     ? "final"
     : effectiveClock
       ? effectiveClock.mode
-      : rank.currentTurn
-        ? "idle"
-        : "pre";
+      : rank.preCountdown
+        ? "prepare"
+        : rank.currentTurn
+          ? "idle"
+          : "pre";
 
   return {
     event: {
@@ -808,7 +826,7 @@ async function poll(){
       } catch (e) { console.warn("[turn] fetch/parse failed:", e); }
     }
 
-    // 3) Countdown / timer. Public page; needs the integer idtourney.
+    // 3) Countdown / timer. The running-round clock (/tourney/countdown).
     let clock = null;
     if (idt){
       try {
@@ -935,7 +953,7 @@ function topStatus(d){
     case "prealarm": return rnd + " · prealarm";
     case "over":     return rnd + " · round ended";
     case "ready":    return rnd + " · prepared";
-    case "prepare":  return r != null ? "Preparing round " + r : "Preparing next round";
+    case "prepare":  return r != null ? "Preparing round " + r : "Preparing the first round";
     case "pre":      return "Before first round";
     default:         return rnd || "In progress";
   }
@@ -1043,10 +1061,10 @@ function tick(){
   const aux = document.getElementById("clockAux");
   bar.classList.remove("state-running", "state-prealarm", "state-time", "state-next", "state-ended");
 
-  if (c.mode === "ready" || c.mode === "prepare"){
+  if (c.mode === "ready"){
     bar.classList.add("state-next");
     tEl.textContent = mmss((c.durationMin || 0) * 60);
-    sEl.textContent = c.mode === "prepare" ? LABELS.nextRound : "Round prepared";
+    sEl.textContent = "Round prepared";
     aux.innerHTML = "";
     return;
   }

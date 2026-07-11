@@ -21,11 +21,14 @@ export function parseTourney(html) {
   const table = doc.querySelector('table.ranking') || pickRankingTable(doc);
   const details = parseDetails(doc);
   const idtourney = extractIdTourney(doc);
+  const preCountdown = extractPreCountdown(doc);
   const currentTurn = detectCurrentTurn(doc);
 
   if (!table) {
+    // Before the first round there is no ranking table yet — still surface the prep timer.
     const t = emptyTourney('empty', tournament, tablesFound);
     t.idtourney = idtourney;
+    t.preCountdown = preCountdown;
     t.currentTurn = currentTurn;
     t.details = details;
     return t;
@@ -60,6 +63,7 @@ export function parseTourney(html) {
     totalRounds: null, // Swiss events have no fixed total
     prized,
     idtourney,
+    preCountdown,
     headers,
     rankIndex,
     playerIndex,
@@ -190,6 +194,20 @@ function extractIdTourney(doc) {
   return null;
 }
 
+// While a round is being prepared, the tourney page links to the pre-round timer:
+//   /tourney/pre_countdown?idtourney=…&duration=<min>&prealarm=<min>
+// That page has NO server anchor (new PreCountdown(dur, pre) starts at page load), so we read
+// duration/prealarm from this link and anchor the countdown locally (see background.js).
+function extractPreCountdown(doc) {
+  const a = doc.querySelector('a[href*="pre_countdown"]');
+  if (!a) return null;
+  const href = a.getAttribute('href') || '';
+  const dm = href.match(/[?&]duration=([\d.]+)/);
+  if (!dm) return null;
+  const pm = href.match(/[?&]prealarm=([\d.]+)/);
+  return { durationMin: parseFloat(dm[1]), prealarmMin: pm ? parseFloat(pm[1]) : 0 };
+}
+
 // SoL details are in <table class="... definition table"> with label/value rows.
 function parseDetails(doc) {
   const out = {};
@@ -220,6 +238,7 @@ function emptyTourney(status, tournament, tablesFound) {
     totalRounds: null,
     prized: false,
     idtourney: null,
+    preCountdown: null,
     headers: [],
     rankIndex: 0,
     playerIndex: 1,
