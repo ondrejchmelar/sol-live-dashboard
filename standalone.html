@@ -215,7 +215,9 @@ main{
 /* ---------- Standings ---------- */
 table.rank{width:100%;border-collapse:collapse;table-layout:fixed;font-size:clamp(.85rem,1.6vw,1.35rem)}
 /* fixed layout + shared colgroup keep the pinned header table aligned with the scrolling body table */
-table.rank col.cg-r{width:2.4rem}
+/* cg-r is wide enough for a right-aligned 3-digit rank chip (100+ players) to sit inside it
+   without overflowing, so every chip's right edge lines up and the gap to the name is constant */
+table.rank col.cg-r{width:3.9rem}
 table.rank col.cg-pts{width:2.8rem}
 table.rank col.cg-num{width:2.6rem}
 table.rank th{
@@ -223,14 +225,14 @@ table.rank th{
   color:var(--muted);font-weight:800;padding:.2em .5em;border-bottom:2px solid var(--line);
   background:var(--panel);
 }
-table.rank th.name,table.rank th.r{text-align:left}
+table.rank th.name{text-align:left}
 table.rank td{padding:clamp(.28rem,.7vw,.55rem) .5em;border-bottom:1px solid var(--line);text-align:right}
 table.rank td.name{text-align:left;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-table.rank td.r{text-align:center;width:2.4em}
+table.rank td.r{text-align:right;padding-left:.15em}
 table.rank td.pts{font-weight:800;color:var(--blue-ink);font-variant-numeric:tabular-nums}
 table.rank td.num{font-variant-numeric:tabular-nums;color:var(--muted)}
 .rankchip{
-  display:inline-block;min-width:1.7em;padding:.12em .35em;border-radius:7px;
+  display:inline-block;min-width:1.2em;padding:.12em .34em;border-radius:7px;text-align:center;
   font-weight:800;color:#fff;background:var(--blue-ink);font-variant-numeric:tabular-nums;
 }
 .rankchip.r1{background:var(--gold)}
