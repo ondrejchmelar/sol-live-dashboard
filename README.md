@@ -1,108 +1,147 @@
-# SoL Live Dashboard (MV3)
+# SoL Live Dashboard
 
-A Chrome MV3 extension that turns your **already-authenticated browser session**
-into a live tournament dashboard for [Scarry On-Line](https://sol5.metapensiero.it/).
+A single HTML file that shows a **live [Scarry On-Line](https://sol5.metapensiero.it/) carrom tournament** on a big
+screen — navy header, a large round clock, live boards, and standings. It reads SoL's public tournament pages
+directly (clearing the Anubis anti-bot gate in the page itself), so there is **no server, no build, and nothing for
+players to install**. Point it at your tournament and put it on a TV.
 
-The key idea: the extension polls the SoL standings page *from your own browser*,
-so **Anubis is solved natively** — no proof-of-work solver, no server, no CORS or
-tunnels. Run it on your laptop during an event. Local-only by default, with an
-optional switch to publish `data.json` to GitHub for a public GitHub Pages view.
+This README is about **getting it running for your own tournament**. For how the code works, see `CLAUDE.md`.
 
-## How it works
+---
+
+## The one catch: it needs a special Chrome launch
+
+SoL doesn't send CORS headers, so a normal browser tab isn't allowed to *read* SoL's pages from another origin — and
+it can't even see the Anubis challenge to solve it. The fix is to open the dashboard in a **throwaway Chrome started
+with web security disabled and its own profile directory**. This is safe because that Chrome is disposable and used
+only for the dashboard. Every deployment method below ends with this same launch step.
+
+You need Chrome, Chromium, Edge, or Brave. **Firefox has no equivalent flag and will not work.**
+
+---
+
+## Step 1 — Find your tournament URL
+
+Open your tournament's public page on SoL. The address looks like:
 
 ```
-chrome.alarms (>=30s)
-   -> background.js fetches the SoL URL  (session cookie + Anubis clearance ride along)
-   -> offscreen.html parses the HTML     (DOMParser isn't available in a service worker)
-   -> chrome.storage.local  { data, status }
-        -> dashboard/  renders locally (live, client-side ticking clock)
-        -> publisher.js  PUTs data.json to GitHub  (only if enabled)
-             -> gh-pages/  public dashboard reads data.json
+https://sol5.metapensiero.it/lit/tourney/<GUID>
 ```
 
-## Install (unpacked)
+`<GUID>` is the long hex string in the URL. Copy the whole URL — that's all the dashboard needs. Singles vs doubles is
+detected automatically, so the same file works for either.
 
-1. `chrome://extensions` → enable **Developer mode** → **Load unpacked** → pick this folder.
-2. Click the toolbar icon → **Options**:
-   - Set the **SoL standings URL** (e.g. `https://sol5.metapensiero.it/lit/tourney/<guid>`).
-   - Leave **publishing disabled** for now.
-3. **Open that SoL URL once in a normal tab** so the browser solves Anubis and stores
-   the clearance cookie.
-4. Popup → **Start polling** → **Open dashboard**.
+## Step 2 — Get the dashboard file
 
-## Status states
+Download `standalone.html` from this repo (the single file is the whole app). Save it anywhere, e.g.
+`~/sol/standalone.html`.
 
-- **ok** — parsed standings stored and rendered.
-- **anubis** — the clearance expired; re-open the SoL page in a tab to re-solve, then **Poll now**.
-- **error** — see the message in the popup (bad URL, HTTP error, parser issue).
+## Step 3 — Launch it
 
-## Adapt the parser
+Replace the path and the `url=` with yours. The `--user-data-dir` is **required** (Chrome ignores
+`--disable-web-security` on your normal profile) — point it at any empty throwaway folder.
 
-`src/parser.js` uses generic heuristics (pick the table that looks like a ranking,
-map columns by header name). Once you can see your real SoL ranking markup, tighten
-`pickRankingTable()` and the header key lists. The data shape it emits:
-
-```json
-{
-  "tournament": "…", "round": 5, "updatedAt": "ISO", "sourceUrl": "…",
-  "standings": [{ "rank": 1, "player": "…", "wins": 5, "points": 42, "spread": 120, "raw": [] }]
-}
+**Linux**
+```
+google-chrome --disable-web-security --user-data-dir="/tmp/sol-kiosk" \
+  --kiosk "file:///home/you/sol/standalone.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
 ```
 
-The local dashboard and the GH Pages dashboard consume this identical shape.
+**macOS**
+```
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --disable-web-security --user-data-dir="/tmp/sol-kiosk" \
+  --kiosk "file:///Users/you/sol/standalone.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
+```
 
-## Going public later (GitHub Pages)
+**Windows** (one line)
+```
+chrome.exe --disable-web-security --user-data-dir="%TEMP%\sol-kiosk" --kiosk "file:///C:/Users/you/sol/standalone.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
+```
 
-1. Create a repo; put the contents of `gh-pages/` at its root (or `/docs`) and enable Pages.
-2. Create a **fine-grained PAT** scoped to that repo with **Contents: read & write**.
-3. Options → enable publishing, fill owner / repo / branch / path (`data.json`) / token, **Save**.
+It opens fullscreen ("Waiting for SoL…"), solves Anubis in the page, and within a few seconds shows your tournament.
+`--kiosk` gives fullscreen with no toolbars; drop it while testing if you want the address bar. Exit with `Alt+F4`
+(or `Cmd+Q` on macOS).
 
-Each successful poll then commits `data.json`; the Pages dashboard re-fetches it every 20s.
-The token lives only in this browser's local extension storage — it is never committed.
+---
 
-## Live timer & matches (multi-fetch)
+## Options
 
-Each poll fetches up to three SoL pages from your cleared browser session:
+Append these to the `?url=…` query string (`&` between them):
 
-1. **Ranking page** (the configured lit URL) → standings, event meta, current turn,
-   `prized` flag, and the integer `idtourney` (when the clock link is present).
-2. **Current turn** (`?turn=<n>`) → the live boards/matches.
-3. **Countdown** (`/tourney/countdown?idtourney=<n>`, public) → the round clock:
-   `new Countdown('c1', duration, prealarm, elapsed|false, …)`.
+- `poll=<seconds>` — how often to refresh (default `60`, minimum `30`).
+- `rounds=<N>` — total rounds, shown as "Round n / N" (Swiss events don't expose this; default `8`).
+- `idt=<idtourney>` — the integer timer id. Normally auto-detected while the round clock runs; only set this if the
+  clock never appears. You can read it from a countdown URL, e.g. `…?idtourney=1201`.
 
-`idtourney` is auto-detected once the clock is running; before that, set it in Options
-(you can read it from the pre/countdown URL, e.g. `…?idtourney=1198`). Steps 2 and 3 are
-best-effort — if one fails or isn't available yet, the rest of the dashboard still updates.
+Example: `standalone.html?url=…/lit/tourney/<GUID>&poll=30&rounds=9`
 
-Handled tournament states (shown in the footer): **before first round**, **round prepared**,
-**round running** → **prealarm** → **round over**, **between rounds**, next round, and
-**final results** (clock hidden, prizes). When there are no live boards or no clock, those
-panels hide and standings span full width.
+---
 
-## Debugging
+## Deployment options
 
-Every poll is logged (console + a rolling buffer), and the **last raw SoL response**
-plus the parse result are stored. Two ways to look:
+All three end with the **Step 3 launch** — hosting only changes *where the file lives*, not the need for the special
+Chrome (the page still fetches SoL cross-origin).
 
-- **Live console:** `chrome://extensions` → the extension → **service worker** → DevTools.
-  Lines are tagged `[SoL <scope>] …` (fetch, parse, publish, poll, control).
-- **Export bundle:** popup → **Export debug** (or Options → **Export debug bundle**).
-  Downloads a JSON with `logs`, `debug.lastResponse` (the real HTML, capped ~500 KB),
-  `debug.lastParsed`, `data`, `status`, and config. **The GitHub token is redacted.**
-  Share that file to diagnose parser/fetch issues against real data.
+### A. Local file (simplest)
+Keep `standalone.html` on the display machine and launch it as in Step 3. Nothing else to set up.
 
-Options shows a quick stat line (last response size/status, rows parsed, tables found),
-a **Clear logs & debug** button, and a **Verbose logging** toggle for debug-level lines.
+### B. Bake your URL into the file (nice for kiosks)
+So you don't have to pass `?url=` every time, copy the file and hard-code your tournament once:
 
-Tip for the first run: hit **Poll now**, then **Export debug** — even if the parser
-mis-maps columns, the raw HTML in the bundle is enough to fix `src/parser.js`.
+1. Copy `standalone.html` to e.g. `mytourney.html`.
+2. Open it in a text editor, find `CONFIG` near the top, and set `targetUrl` to your `…/lit/tourney/<GUID>` URL.
+3. Launch it without a query string:
+   `google-chrome --disable-web-security --user-data-dir="/tmp/sol-kiosk" --kiosk "file:///path/mytourney.html"`
+
+(The shipped `standalone-singles.html` / `standalone-doubles.html` are exactly this — copies with a specific
+tournament baked in.)
+
+### C. Host on a web server
+Upload `standalone.html` (or your baked copy) to any static host — e.g. `https://yoursite/dashboard/mytourney.html`
+— by FTP or however you publish that site. Then on the display machine launch Chrome pointing at the **hosted URL**
+instead of a `file://` path:
+
+```
+google-chrome --disable-web-security --user-data-dir="/tmp/sol-kiosk" \
+  --kiosk "https://yoursite/dashboard/mytourney.html"
+```
+
+Hosting is convenient for updating the file centrally and for several screens, but each screen still runs its own
+throwaway Chrome with the flags — visiting the URL in a normal browser will not work (CORS).
+
+---
+
+## Running it unattended (kiosk tips)
+
+- **Auto-start on boot:** put the launch command in the OS autostart (a `.desktop` autostart entry or systemd user
+  service on Linux, a Startup shortcut on Windows). A fresh `--user-data-dir` each boot is fine.
+- **Keep the screen awake:** disable sleep/screensaver on the display machine.
+- **Weak/laptop GPUs:** the dashboard is tuned to stay light on CPU (discrete-step pulsing, GPU-composited scrolling),
+  so it runs comfortably unattended for hours.
+- The Anubis clearance cookie lasts ~7 days, and the page re-solves automatically if it expires, so a long run is fine.
+
+---
+
+## If the dashboard can't get past Anubis
+
+The in-page Anubis solver works today, but Anubis is third-party anti-bot software and an update could change its
+puzzle. If the dashboard gets stuck on "Reconnecting to SoL…", use the **Chrome extension** in this repo as a
+fallback: it runs Anubis's own code in a real browser tab, so it can't break on Anubis logic changes.
+
+1. `chrome://extensions` → enable **Developer mode** → **Load unpacked** → select this repo folder.
+2. Extension **Options** → set your `…/lit/tourney/<GUID>` URL.
+3. Open that SoL URL once in a normal tab so the browser solves Anubis.
+4. Extension popup → **Start polling** → **Open dashboard**.
+
+Same dashboard, same data — just a different way through the gate.
+
+---
 
 ## Notes & limits
 
-- Poll interval floor is **30s** (`chrome.alarms` minimum for unpacked extensions).
-  The client-side "updated Xs ago" clock keeps the display feeling live regardless.
-- Polling stops if the laptop sleeps or the browser closes — fine for a staffed
-  dashboard; use a server only if you need 24/7 hands-off.
-- Players never install anything; this is a dashboard-operator tool.
-- **Firefox:** Firefox MV3 lacks `chrome.offscreen`. To port, move parsing into the
-  background script (Firefox event pages have DOM access) instead of the offscreen doc.
+- **One field per file.** Singles and doubles are separate SoL tournaments; run one dashboard per tournament URL.
+- **Pre-round timer.** While a round is being *prepared*, SoL exposes no way to know how much break time remains, so
+  the header just says "Preparing the …round" without a countdown. A live clock appears once the round starts.
+- **Firefox is not supported** — it has no `--disable-web-security` equivalent.
+- This is an operator/display tool; players never install anything.
