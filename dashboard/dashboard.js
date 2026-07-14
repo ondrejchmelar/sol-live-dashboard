@@ -223,6 +223,29 @@ function renderStatic(){
 }
 
 // A new match column every 15 boards, capped at 3: <15 → 1, 15–29 → 2, 30+ → 3.
+/* ---------- Message bar (operator announcement; click the logo to edit) ---------- */
+const MSG_KEY="solDash.message";
+let MSG="";
+try{ MSG=localStorage.getItem(MSG_KEY)||""; }catch(e){}
+
+function renderMessage(){
+  const bar=document.getElementById("messageBar");
+  const msg=MSG.trim();
+  bar.textContent=msg;
+  bar.classList.toggle("on",!!msg);
+}
+function setMessage(v){
+  MSG=v;
+  try{ localStorage.setItem(MSG_KEY,v); }catch(e){}
+  renderMessage();
+}
+function openMsgEditor(){
+  document.getElementById("msgInput").value=MSG;
+  document.getElementById("msgEditor").classList.add("on");
+  document.getElementById("msgInput").focus();
+}
+function closeMsgEditor(){ document.getElementById("msgEditor").classList.remove("on"); }
+
 function matchColumns(n){ return n>=30 ? 3 : n>=15 ? 2 : 1; }
 
 // Standings are always visible (1 column); the matches panel appears whenever
@@ -455,3 +478,10 @@ boot();
 // Persistent auto-scrollers on each panel body (run for the life of the page).
 attachAutoScroll(document.getElementById("matchesBody"));
 attachAutoScroll(document.getElementById("standingsBody"));
+
+renderMessage();
+document.querySelector("header.app .logo").addEventListener("click",openMsgEditor);
+document.getElementById("msgSave").addEventListener("click",()=>{ setMessage(document.getElementById("msgInput").value); closeMsgEditor(); });
+document.getElementById("msgClear").addEventListener("click",()=>{ setMessage(""); closeMsgEditor(); });
+document.getElementById("msgEditor").addEventListener("click",e=>{ if(e.target.id==="msgEditor") closeMsgEditor(); });
+addEventListener("keydown",e=>{ if(e.key==="Escape") closeMsgEditor(); });

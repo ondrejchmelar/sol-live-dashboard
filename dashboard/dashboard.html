@@ -58,6 +58,29 @@ header.app .sub{
   text-transform:uppercase;letter-spacing:.08em;margin-top:.15rem;
 }
 header.app .sub .dot{opacity:.55;margin:0 .45em}
+header.app .logo{cursor:pointer}
+
+/* ---------- Message bar (announcement to players; click the logo to edit) ---------- */
+#messageBar{
+  display:none;text-align:center;white-space:pre-wrap;
+  font-size:clamp(.85rem,1.6vw,1.35rem);font-weight:600;line-height:1.35;
+  color:#6b4a00;background:linear-gradient(180deg,#fff8e1,#fdf0c6);
+  border-bottom:2px solid #f0c74a;
+  padding:clamp(.4rem,1vw,.75rem) clamp(.8rem,2vw,1.6rem);
+}
+#messageBar.on{display:block}
+#messageBar::before{content:"📢";margin-right:.6em}
+#msgEditor{position:fixed;inset:0;background:rgba(11,30,51,.55);display:none;align-items:center;justify-content:center;z-index:50}
+#msgEditor.on{display:flex}
+#msgEditor .box{
+  background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.35);
+  padding:1.2rem 1.4rem;width:min(90vw,34rem);display:flex;flex-direction:column;gap:.8rem;
+}
+#msgEditor h3{margin:0;font-size:1.1rem;color:var(--blue-ink)}
+#msgEditor textarea{font:inherit;font-size:1rem;padding:.6rem;border:1px solid var(--line);border-radius:8px;resize:vertical;min-height:6rem}
+#msgEditor .row{display:flex;justify-content:flex-end;gap:.6rem}
+#msgEditor button{font:inherit;font-weight:700;padding:.45rem 1.1rem;border-radius:8px;border:1px solid var(--line);background:#f2f5f9;color:var(--ink);cursor:pointer}
+#msgEditor button.primary{background:var(--blue);border-color:var(--blue);color:#fff}
 
 /* ---------- Timer bar ---------- */
 .timerbar{
@@ -300,6 +323,8 @@ table.rank td.name{font-weight:400}
   <div class="aux" id="clockAux"></div>
 </header>
 
+<div id="messageBar"></div>
+
 <main>
   <section class="panel" id="matchesPanel">
     <h2><span id="matchesTitle">Live matches</span><span class="pginfo" id="matchesPg"></span></h2>
@@ -316,6 +341,17 @@ table.rank td.name{font-weight:400}
   <span id="updated"></span>
   <span class="src" id="dashstatus"></span>
 </footer>
+
+<div id="msgEditor">
+  <div class="box">
+    <h3>Message to players</h3>
+    <textarea id="msgInput" rows="4" placeholder="Shown below the header — leave empty to hide the bar"></textarea>
+    <div class="row">
+      <button type="button" id="msgClear">Clear</button>
+      <button type="button" id="msgSave" class="primary">Show</button>
+    </div>
+  </div>
+</div>
 
 <script src="dashboard.js"></script>
 </body>
