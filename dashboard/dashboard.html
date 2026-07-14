@@ -70,17 +70,21 @@ header.app .logo{cursor:pointer}
 }
 #messageBar.on{display:block}
 #messageBar::before{content:"📢";margin-right:.6em}
-#msgEditor{position:fixed;inset:0;background:rgba(11,30,51,.55);display:none;align-items:center;justify-content:center;z-index:50}
-#msgEditor.on{display:flex}
-#msgEditor .box{
+#msgEditor,#nextEditor{position:fixed;inset:0;background:rgba(11,30,51,.55);display:none;align-items:center;justify-content:center;z-index:50}
+#msgEditor.on,#nextEditor.on{display:flex}
+#msgEditor .box,#nextEditor .box{
   background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.35);
   padding:1.2rem 1.4rem;width:min(90vw,34rem);display:flex;flex-direction:column;gap:.8rem;
 }
-#msgEditor h3{margin:0;font-size:1.1rem;color:var(--blue-ink)}
+#msgEditor h3,#nextEditor h3{margin:0;font-size:1.1rem;color:var(--blue-ink)}
 #msgEditor textarea{font:inherit;font-size:1rem;padding:.6rem;border:1px solid var(--line);border-radius:8px;resize:vertical;min-height:6rem}
-#msgEditor .row{display:flex;justify-content:flex-end;gap:.6rem}
-#msgEditor button{font:inherit;font-weight:700;padding:.45rem 1.1rem;border-radius:8px;border:1px solid var(--line);background:#f2f5f9;color:var(--ink);cursor:pointer}
-#msgEditor button.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+#msgEditor .row,#nextEditor .row{display:flex;justify-content:flex-end;gap:.6rem}
+#msgEditor button,#nextEditor button{font:inherit;font-weight:700;padding:.45rem 1.1rem;border-radius:8px;border:1px solid var(--line);background:#f2f5f9;color:var(--ink);cursor:pointer}
+#msgEditor button.primary,#nextEditor button.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+#nextEditor label{display:flex;align-items:center;justify-content:space-between;gap:.8rem;font-weight:600}
+#nextEditor input{font:inherit;font-size:1rem;padding:.35rem .5rem;border:1px solid var(--line);border-radius:8px}
+#nextEditor input[type=number]{width:5.5rem}
+header.app .aux{cursor:pointer}
 
 /* ---------- Timer bar ---------- */
 .timerbar{
@@ -354,6 +358,18 @@ table.rank td.name{font-weight:400}
     <div class="row">
       <button type="button" id="msgClear">Clear</button>
       <button type="button" id="msgSave" class="primary">Show</button>
+    </div>
+  </div>
+</div>
+
+<div id="nextEditor">
+  <div class="box">
+    <h3>Next round</h3>
+    <label>Expected start <input type="time" id="nextInput"></label>
+    <label>Break between rounds (min) <input type="number" id="breakInput" min="0" max="180" step="5"></label>
+    <div class="row">
+      <button type="button" id="nextAuto">Auto time</button>
+      <button type="button" id="nextSave" class="primary">Set</button>
     </div>
   </div>
 </div>

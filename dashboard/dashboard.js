@@ -165,6 +165,7 @@ function start(data){
     // No live clock yet (e.g. id not learned until the first countdown starts).
     // Hide the timer silently — never surface a diagnostic on the public display.
     bar.style.display="none";
+    renderNextRound();     // keep the "next round ~" estimate up between timers
   }
 }
 
@@ -412,21 +413,80 @@ addEventListener("resize",()=>{
 });
 
 /* ---------- Live clock tick ---------- */
-const BREAK_MIN=10;   // assumed break between rounds for the "next round ~" estimate
+const BREAK_KEY="solDash.breakMin";
+let BREAK_MIN=10;     // assumed break between rounds for the "next round ~" estimate
+try{ BREAK_MIN=Math.max(0,Number(localStorage.getItem(BREAK_KEY)))||BREAK_MIN; }catch(e){}
+
+/* Next-round estimate. auto = this round's end + BREAK_MIN (computed from the running
+   clock and remembered after it ends); manual = operator override set by clicking the
+   header time (lunch breaks). Both survive until a NEW clock starts. */
+const NEXT_KEY="solDash.nextRound";
+let NEXT={ roundISO:null, endMs:null, manual:null };
+try{
+  NEXT=Object.assign(NEXT,JSON.parse(localStorage.getItem(NEXT_KEY)||"{}"));
+  // drop leftovers from a previous tournament day
+  if(NEXT.savedMs && Date.now()-NEXT.savedMs>6*3600000) NEXT={ roundISO:null, endMs:null, manual:null };
+}catch(e){}
+function saveNext(){ NEXT.savedMs=Date.now(); try{ localStorage.setItem(NEXT_KEY,JSON.stringify(NEXT)); }catch(e){} }
+
+function renderNextRound(){
+  const aux=document.getElementById("clockAux");
+  if(!DATA || DATA.state==="final"){ aux.innerHTML=""; return; }
+  let inner="";
+  if(NEXT.manual) inner="<b>"+esc(NEXT.manual)+"</b>";
+  else if(NEXT.endMs) inner="<b>~"+hhmm(round5(new Date(NEXT.endMs+BREAK_MIN*60000)))+"</b>";
+  else if(DATA.event.name) inner="<b>—</b>";
+  aux.innerHTML=inner?'<span class="nrlabel">'+LABELS.nextRound+"</span>"+inner:"";
+}
+
+function openNextEditor(){
+  const auto=NEXT.endMs?hhmm(round5(new Date(NEXT.endMs+BREAK_MIN*60000))):"";
+  document.getElementById("nextInput").value=NEXT.manual||auto;
+  document.getElementById("breakInput").value=BREAK_MIN;
+  document.getElementById("nextEditor").classList.add("on");
+}
+function closeNextEditor(){ document.getElementById("nextEditor").classList.remove("on"); }
+function applyNextEditor(clearManual){
+  const brk=Number(document.getElementById("breakInput").value);
+  if(Number.isFinite(brk) && brk>=0){
+    BREAK_MIN=brk;
+    try{ localStorage.setItem(BREAK_KEY,String(brk)); }catch(e){}
+  }
+  NEXT.manual=clearManual?null:(document.getElementById("nextInput").value||null);
+  saveNext();
+  renderNextRound();
+  closeNextEditor();
+}
+
 function tick(){
   const c=DATA.clock;
   const bar=document.getElementById("timerbar");
   const tEl=document.getElementById("clockTime");
   const sEl=document.getElementById("clockState");
-  const aux=document.getElementById("clockAux");
   bar.classList.remove("state-running","state-prealarm","state-time","state-next","state-ended");
+
+  // Remember this round's end for the "next round ~" estimate. It survives past the
+  // round's end; a NEW clock (startedAt far from the remembered one — the ISO drifts
+  // ±1s per poll) resets it and clears any manual override.
+  if(c.startedAtISO){
+    const startMs=new Date(c.startedAtISO).getTime();
+    const endMs=startMs+c.durationMin*60000;
+    const prevMs=NEXT.roundISO?new Date(NEXT.roundISO).getTime():null;
+    if(prevMs==null || Math.abs(startMs-prevMs)>5*60000){
+      NEXT={ roundISO:c.startedAtISO, endMs:endMs, manual:null };
+      saveNext();
+    }else if(Math.abs((NEXT.endMs||0)-endMs)>60000){
+      NEXT.endMs=endMs;
+      saveNext();
+    }
+  }
+  renderNextRound();
 
   // Round prepared but clock not started — show the full duration, no live counting.
   if(c.mode==="ready"){
     bar.classList.add("state-next");
     tEl.textContent=mmss((c.durationMin||0)*60);
     sEl.textContent="Round prepared";
-    aux.innerHTML="";
     return;
   }
 
@@ -435,15 +495,12 @@ function tick(){
     bar.classList.add("state-ended");
     tEl.textContent="00:00";
     sEl.textContent=LABELS.time; // "Round ended"
-    aux.innerHTML="";
     return;
   }
 
   const started=new Date(c.startedAtISO).getTime();
   const durSec=c.durationMin*60, preSec=c.prealarmMin*60;
   const remaining=durSec-(Date.now()-started)/1000;
-  aux.innerHTML='<span class="nrlabel">'+LABELS.nextRound+'</span><b>~'+
-    hhmm(round5(new Date(started+(durSec+BREAK_MIN*60)*1000)))+'</b>';
 
   if(remaining>preSec){
     bar.classList.add("state-running");
@@ -520,4 +577,8 @@ document.querySelector("header.app .logo").addEventListener("click",openMsgEdito
 document.getElementById("msgSave").addEventListener("click",()=>{ setMessage(document.getElementById("msgInput").value); closeMsgEditor(); });
 document.getElementById("msgClear").addEventListener("click",()=>{ setMessage(""); closeMsgEditor(); });
 document.getElementById("msgEditor").addEventListener("click",e=>{ if(e.target.id==="msgEditor") closeMsgEditor(); });
-addEventListener("keydown",e=>{ if(e.key==="Escape") closeMsgEditor(); });
+document.getElementById("clockAux").addEventListener("click",openNextEditor);
+document.getElementById("nextSave").addEventListener("click",()=>applyNextEditor(false));
+document.getElementById("nextAuto").addEventListener("click",()=>applyNextEditor(true));
+document.getElementById("nextEditor").addEventListener("click",e=>{ if(e.target.id==="nextEditor") closeNextEditor(); });
+addEventListener("keydown",e=>{ if(e.key==="Escape"){ closeMsgEditor(); closeNextEditor(); } });
