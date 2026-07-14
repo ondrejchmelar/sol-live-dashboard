@@ -217,9 +217,7 @@ function topStatus(d){
 function renderStatic(){
   const e=DATA.event;
   document.getElementById("eventName").textContent=e.name;
-  const typeLbl=e.type==="doubles"?"Doubles":"Singles";
-  document.getElementById("eventSub").textContent=
-    topStatus(DATA)+" · "+typeLbl+(e.location?" · "+e.location:"");
+  document.getElementById("eventSub").textContent=topStatus(DATA);
   document.getElementById("matchesTitle").textContent=LABELS.liveMatches;
   document.title=e.name+" — Corridor Dashboard";
 }
