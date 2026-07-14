@@ -141,7 +141,12 @@ main{
   font-size:clamp(.95rem,1.8vw,1.5rem);font-weight:800;color:#fff;
   background:var(--blue-ink);display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;
 }
-.panel > h2 .pginfo{font-size:.62em;font-weight:700;color:#cfe0f5;letter-spacing:.05em}
+.panel > h2 .pginfo{font-size:.62em;font-weight:700;color:#cfe0f5;letter-spacing:.05em;margin-left:auto}
+/* round marker next to the Standings title — same font as the header's eventSub */
+.panel > h2 .roundmark{
+  font-size:clamp(.7rem,1.3vw,1rem);color:#cfe0f5;font-weight:600;
+  text-transform:uppercase;letter-spacing:.08em;
+}
 .panel .body{padding:0 clamp(.3rem,.8vw,.6rem) clamp(.3rem,.8vw,.6rem);overflow:hidden;flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
 .panel .body::-webkit-scrollbar{width:0;height:0}
 /* Auto-scroll: fixed header stays in .body; rows live in .scroller, moved via GPU transform inside the clipping .sclip */
@@ -331,7 +336,7 @@ table.rank td.name{font-weight:400}
     <div class="body" id="matchesBody"></div>
   </section>
   <section class="panel" id="standingsPanel">
-    <h2><span id="standingsTitle">Standings</span><span class="pginfo" id="standingsPg"></span></h2>
+    <h2><span id="standingsTitle">Standings</span><span class="roundmark" id="standingsRound"></span><span class="pginfo" id="standingsPg"></span></h2>
     <div class="body" id="standingsBody"></div>
   </section>
 </main>

@@ -182,7 +182,12 @@ main{
   font-size:clamp(.95rem,1.8vw,1.5rem);font-weight:800;color:#fff;
   background:var(--blue-ink);display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;
 }
-.panel > h2 .pginfo{font-size:.62em;font-weight:700;color:#cfe0f5;letter-spacing:.05em}
+.panel > h2 .pginfo{font-size:.62em;font-weight:700;color:#cfe0f5;letter-spacing:.05em;margin-left:auto}
+/* round marker next to the Standings title — same font as the header's eventSub */
+.panel > h2 .roundmark{
+  font-size:clamp(.7rem,1.3vw,1rem);color:#cfe0f5;font-weight:600;
+  text-transform:uppercase;letter-spacing:.08em;
+}
 .panel .body{padding:0 clamp(.3rem,.8vw,.6rem) clamp(.3rem,.8vw,.6rem);overflow:hidden;flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
 .panel .body::-webkit-scrollbar{width:0;height:0}
 /* Auto-scroll: fixed header stays in .body; rows live in .scroller, moved via GPU transform inside the clipping .sclip */
@@ -370,7 +375,7 @@ table.rank td.name{font-weight:400}
     <div class="body" id="matchesBody"></div>
   </section>
   <section class="panel" id="standingsPanel">
-    <h2><span id="standingsTitle">Standings</span><span class="pginfo" id="standingsPg"></span></h2>
+    <h2><span id="standingsTitle">Standings</span><span class="roundmark" id="standingsRound"></span><span class="pginfo" id="standingsPg"></span></h2>
     <div class="body" id="standingsBody"></div>
   </section>
 </main>
@@ -899,6 +904,7 @@ const LABELS = {
   nextRound: "Next round", prealarmIn: "prealarm in", nextRoundAt: "next round ~",
   updated: "updated", finished: "Finished", inProgress: "In progress", bye: "Bye",
   pts: "Pts", bch: "Bch", net: "Net", page: "page", source: "source",
+  afterRound: "after round",
 };
 
 const SCROLL_SPEED = 28;      // px/sec vertical drift
@@ -1035,11 +1041,20 @@ const STAND_PANEL_REM = { singles: 33.5, doubles: 45.5 };  // standings beside m
 
 function eventType(){ return DATA && DATA.event.type === "doubles" ? "doubles" : "singles"; }
 
+// Standings are hidden while round 1 is still in play — until its results are all in,
+// the ranking would only echo the seeding order.
+function showStandings(){
+  const list = DATA.matches || [];
+  if (!list.length) return true;                    // pre-round player list
+  if (DATA.event.currentRound !== 1) return true;
+  return list.every((m) => m.finished || m.phantom);
+}
+
 // As many match columns as fit beside the standings (5 singles / 3 doubles at 4K),
 // but no more than one column per ~6 boards so small rounds don't over-spread.
 function matchColumns(n){
   const t = eventType();
-  const avail = window.innerWidth - STAND_PANEL_REM[t] * 20; // minus the standings panel
+  const avail = window.innerWidth - (showStandings() ? STAND_PANEL_REM[t] * 20 : 0); // minus the standings panel
   return Math.max(1, Math.min(Math.ceil(n / 6), Math.floor(avail / MATCH_MIN_COL[t])));
 }
 
@@ -1050,9 +1065,10 @@ function layoutPanels(){
   const m = document.getElementById("matchesPanel");
   const s = document.getElementById("standingsPanel");
   const main = document.querySelector("main");
-  s.style.display = "";
+  const showS = showStandings();
+  s.style.display = showS ? "" : "none";
   m.style.display = hasMatches ? "" : "none";
-  main.style.gridTemplateColumns = hasMatches ? (cols + "fr " + STAND_PANEL_REM[eventType()] + "rem") : "1fr";
+  main.style.gridTemplateColumns = hasMatches && showS ? (cols + "fr " + STAND_PANEL_REM[eventType()] + "rem") : "1fr";
 }
 
 function renderMatches(){
@@ -1113,6 +1129,16 @@ function renderStandings(){
   const hasMatches = (DATA.matches || []).length > 0;
   const body = document.getElementById("standingsBody");
   document.getElementById("standingsTitle").textContent = hasMatches ? LABELS.standings : LABELS.players;
+  // "after round N": N = the round whose results the ranking already includes — the
+  // current round once all its boards are final, otherwise the previous one.
+  let roundMark = "";
+  const curRound = DATA.event.currentRound;
+  if (hasMatches && curRound != null){
+    const allDone = (DATA.matches || []).every((m) => m.finished || m.phantom);
+    const after = allDone ? curRound : curRound - 1;
+    if (after >= 1) roundMark = LABELS.afterRound + " " + after;
+  }
+  document.getElementById("standingsRound").textContent = roundMark;
   const teamLabel = DATA.event.type === "doubles" ? "Team" : "Player";
   const rcell = (r) => '<td class="r"><span class="' + (r.rank <= 3 ? "rankchip r" + r.rank : "rankchip") + '">' + r.rank + "</span></td>";
   const single = (cg, thead, rows) =>

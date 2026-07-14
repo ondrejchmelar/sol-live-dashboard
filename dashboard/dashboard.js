@@ -8,6 +8,7 @@ const LABELS={
   nextRound:"Next round", prealarmIn:"prealarm in", nextRoundAt:"next round ~",
   updated:"updated", finished:"Finished", inProgress:"In progress", bye:"Bye",
   pts:"Pts", bch:"Bch", net:"Net", page:"page", source:"source",
+  afterRound:"after round",
 };
 
 /* ============================================================
@@ -255,11 +256,20 @@ const STAND_PANEL_REM={ singles:33.5, doubles:45.5 };  // standings beside match
 
 function eventType(){ return DATA && DATA.event.type==="doubles" ? "doubles" : "singles"; }
 
+// Standings are hidden while round 1 is still in play — until its results are all in,
+// the ranking would only echo the seeding order.
+function showStandings(){
+  const list=DATA.matches||[];
+  if(!list.length) return true;                    // pre-round player list
+  if(DATA.event.currentRound!==1) return true;
+  return list.every((m)=>m.finished||m.phantom);
+}
+
 // As many match columns as fit beside the standings (5 singles / 3 doubles at 4K),
 // but no more than one column per ~6 boards so small rounds don't over-spread.
 function matchColumns(n){
   const t=eventType();
-  const avail=window.innerWidth-STAND_PANEL_REM[t]*20;
+  const avail=window.innerWidth-(showStandings()?STAND_PANEL_REM[t]*20:0);
   return Math.max(1, Math.min(Math.ceil(n/6), Math.floor(avail/MATCH_MIN_COL[t])));
 }
 
@@ -272,9 +282,10 @@ function layoutPanels(){
   const m=document.getElementById("matchesPanel");
   const s=document.getElementById("standingsPanel");
   const main=document.querySelector("main");
-  s.style.display="";                              // standings: always shown
+  const showS=showStandings();
+  s.style.display=showS?"":"none";
   m.style.display=hasMatches?"":"none";
-  main.style.gridTemplateColumns=hasMatches?(cols+"fr "+STAND_PANEL_REM[eventType()]+"rem"):"1fr"; // matches | standings
+  main.style.gridTemplateColumns=hasMatches&&showS?(cols+"fr "+STAND_PANEL_REM[eventType()]+"rem"):"1fr"; // matches | standings
 }
 
 function renderMatches(){
@@ -336,6 +347,16 @@ function renderStandings(){
   const hasMatches=(DATA.matches||[]).length>0;
   const body=document.getElementById("standingsBody");
   document.getElementById("standingsTitle").textContent=hasMatches?LABELS.standings:LABELS.players;
+  // "after round N": N = the round whose results the ranking already includes — the
+  // current round once all its boards are final, otherwise the previous one.
+  let roundMark="";
+  const curRound=DATA.event.currentRound;
+  if(hasMatches && curRound!=null){
+    const allDone=(DATA.matches||[]).every((m)=>m.finished||m.phantom);
+    const after=allDone?curRound:curRound-1;
+    if(after>=1) roundMark=LABELS.afterRound+" "+after;
+  }
+  document.getElementById("standingsRound").textContent=roundMark;
   const teamLabel=DATA.event.type==="doubles"?"Team":"Player";
   const rcell=r=>'<td class="r"><span class="'+(r.rank<=3?"rankchip r"+r.rank:"rankchip")+'">'+r.rank+'</span></td>';
   const single=(cg,thead,rows)=>

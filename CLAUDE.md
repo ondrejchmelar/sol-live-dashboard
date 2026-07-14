@@ -105,9 +105,10 @@ already scored (so "Round ended" holds until new pairings are drawn).
 
 ## Behaviour to preserve (don't regress)
 
-- **Layout:** standings always visible. Matches column-major; match-column count = as many as fit beside the
-  standings panel (`MATCH_MIN_COL`, per event type — 5 singles / 3 doubles at 4K), capped at one column per ~6
-  boards so small rounds don't over-spread. Standings panel beside matches has a fixed per-type width
+- **Layout:** standings always visible — except while round 1 is still in play (`showStandings`), when the ranking
+  would only echo seeding and the matches take the full width. Matches column-major; match-column count = as many
+  as fit beside the standings panel (`MATCH_MIN_COL`, per event type — 5 singles / 3 doubles at 4K), capped at one
+  column per ~6 boards so small rounds don't over-spread. Standings panel beside matches has a fixed per-type width
   (`STAND_PANEL_REM`); the no-matches player list uses per-type `STAND_MIN_COL`.
   All three are tuned so the longest expected names fit unclipped at 4K — singles "WEERAWARNAKULA Haritha" (368px at
   the 1.35rem font cap), doubles "BANKOVIC Aleksandar/PAVLOVIC Aleksandar" (596px); longer names may ellipsize.
