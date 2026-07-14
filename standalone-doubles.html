@@ -1025,7 +1025,23 @@ function openMsgEditor(){
 }
 function closeMsgEditor(){ document.getElementById("msgEditor").classList.remove("on"); }
 
-function matchColumns(n){ return n >= 30 ? 3 : n >= 15 ? 2 : 1; }
+/* Content-driven column sizing, tuned against the longest expected names at the 1.35rem
+   font cap: singles "WEERAWARNAKULA Haritha" = 368px, doubles "BANKOVIC Aleksandar/
+   PAVLOVIC Aleksandar" = 596px (longer pairs may ellipsize). Values include the rank/
+   board/score/badge cells, paddings and grid gaps around the name. */
+const STAND_MIN_COL = { singles: 520, doubles: 760 };      // players list (no matches): rank+name column
+const MATCH_MIN_COL = { singles: 600, doubles: 850 };      // matches: board+names+score+badge column
+const STAND_PANEL_REM = { singles: 33.5, doubles: 45.5 };  // standings beside matches (rank+name+pts/bch/net)
+
+function eventType(){ return DATA && DATA.event.type === "doubles" ? "doubles" : "singles"; }
+
+// As many match columns as fit beside the standings (5 singles / 3 doubles at 4K),
+// but no more than one column per ~6 boards so small rounds don't over-spread.
+function matchColumns(n){
+  const t = eventType();
+  const avail = window.innerWidth - STAND_PANEL_REM[t] * 20; // minus the standings panel
+  return Math.max(1, Math.min(Math.ceil(n / 6), Math.floor(avail / MATCH_MIN_COL[t])));
+}
 
 function layoutPanels(){
   const list = DATA.matches || [];
@@ -1036,7 +1052,7 @@ function layoutPanels(){
   const main = document.querySelector("main");
   s.style.display = "";
   m.style.display = hasMatches ? "" : "none";
-  main.style.gridTemplateColumns = hasMatches ? (cols + "fr 1fr") : "1fr";
+  main.style.gridTemplateColumns = hasMatches ? (cols + "fr " + STAND_PANEL_REM[eventType()] + "rem") : "1fr";
 }
 
 function renderMatches(){
@@ -1086,11 +1102,9 @@ function renderMatchRow(m){
 
 // How many standings columns fit — driven by viewport WIDTH (not player count), so a wide
 // screen uses more columns. Capped so a column never gets absurdly short.
-// Wide columns so full names — and doubles "Name1 / Name2" pairs — stay readable:
-// ~2 columns at 1920, ~4 at 4K.
-const STAND_MIN_COL = 900;   // px: min width of a rank+name column
+// Column width per event type (see STAND_MIN_COL): ~7 singles / ~5 doubles columns at 4K.
 function standingsCols(n){
-  const byWidth = Math.floor(window.innerWidth / STAND_MIN_COL);
+  const byWidth = Math.floor(window.innerWidth / STAND_MIN_COL[eventType()]);
   return Math.max(1, Math.min(byWidth, Math.ceil(n / 4)));
 }
 
@@ -1242,12 +1256,12 @@ addEventListener("keydown", e => { if (e.key === "Escape") closeMsgEditor(); });
 poll();
 setInterval(poll, Math.max(30, CONFIG.pollSeconds) * 1000);
 
-// Re-flow the player-list columns when the viewport width changes (only matters with no matches).
+// Re-flow the width-driven columns (players list, match columns) when the viewport changes.
 let _resizeT = null;
 addEventListener("resize", () => {
   clearTimeout(_resizeT);
   _resizeT = setTimeout(() => {
-    if (everRendered && DATA && !(DATA.matches || []).length) renderStandings();
+    if (everRendered && DATA){ renderMatches(); renderStandings(); layoutPanels(); }
   }, 200);
 });
 </script>

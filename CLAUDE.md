@@ -105,8 +105,13 @@ already scored (so "Round ended" holds until new pairings are drawn).
 
 ## Behaviour to preserve (don't regress)
 
-- **Layout:** standings always visible. Matches column-major; match-column count by board count (**<15→1, 15–29→2,
-  30+→3**); standings is the extra column. Fonts rem-based (`html{font-size:20px}`) so browser zoom scales everything.
+- **Layout:** standings always visible. Matches column-major; match-column count = as many as fit beside the
+  standings panel (`MATCH_MIN_COL`, per event type — 5 singles / 3 doubles at 4K), capped at one column per ~6
+  boards so small rounds don't over-spread. Standings panel beside matches has a fixed per-type width
+  (`STAND_PANEL_REM`); the no-matches player list uses per-type `STAND_MIN_COL`.
+  All three are tuned so the longest expected names fit unclipped at 4K — singles "WEERAWARNAKULA Haritha" (368px at
+  the 1.35rem font cap), doubles "BANKOVIC Aleksandar/PAVLOVIC Aleksandar" (596px); longer names may ellipsize.
+  Fonts rem-based (`html{font-size:20px}`) so browser zoom scales everything.
 - **Names:** surname bold caps, first name regular; doubles on one slash-separated line, ellipsis-truncated.
 - **Clock states:** running → "In progress"; prealarm; over → "Round ended" in red, holds until new pairings are
   drawn; ready → "Round prepared". `prepare`/`pre` show only a header label, **no timer bar**.
