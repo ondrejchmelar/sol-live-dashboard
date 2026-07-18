@@ -318,9 +318,9 @@ function renderMatches(){
 
 function renderMatchRow(m){
   const s1win=m.finished&&m.winner===1, s2win=m.finished&&m.winner===2;
-  // The round only starts "in progress" once its clock is running — while it's
-  // merely prepared (or before the first round) boards are scheduled, not live.
-  const started=DATA.state!=="ready" && DATA.state!=="prepare" && DATA.state!=="pre";
+  // A board is "in progress" only while the round clock is actually running —
+  // otherwise (prepared, idle, over, …) it's scheduled or already settled.
+  const started=DATA.state==="running";
   // Icon-only status so every row's badge is the same width → scores stay aligned.
   let badge;
   if(m.phantom) badge='<span class="badge bye" title="'+LABELS.bye+'">—</span>';
@@ -463,7 +463,7 @@ function tick(){
   const bar=document.getElementById("timerbar");
   const tEl=document.getElementById("clockTime");
   const sEl=document.getElementById("clockState");
-  bar.classList.remove("state-running","state-prealarm","state-time","state-next","state-ended");
+  bar.classList.remove("state-running","state-prealarm","state-time","state-next","state-ended","state-alldone");
 
   // Remember this round's end for the "next round ~" estimate. It survives past the
   // round's end; a NEW clock (startedAt far from the remembered one — the ISO drifts
@@ -497,6 +497,11 @@ function tick(){
     sEl.textContent=LABELS.time; // "Round ended"
     return;
   }
+
+  // Every board already final while the clock still runs — blink the timer
+  // so it's obvious the round can be ended early.
+  const boards=DATA.matches||[];
+  if(boards.length && boards.every((m)=>m.finished||m.phantom)) bar.classList.add("state-alldone");
 
   const started=new Date(c.startedAtISO).getTime();
   const durSec=c.durationMin*60, preSec=c.prealarmMin*60;

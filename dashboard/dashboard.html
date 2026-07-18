@@ -63,7 +63,7 @@ header.app .logo{cursor:pointer}
 /* ---------- Message bar (announcement to players; click the logo to edit) ---------- */
 #messageBar{
   display:none;text-align:center;white-space:pre-wrap;
-  font-size:clamp(.85rem,1.6vw,1.35rem);font-weight:600;line-height:1.35;
+  font-size:clamp(1.3rem,2.4vw,2rem);font-weight:600;line-height:1.35;
   color:#6b4a00;background:linear-gradient(180deg,#fff8e1,#fdf0c6);
   border-bottom:2px solid #f0c74a;
   padding:clamp(.4rem,1vw,.75rem) clamp(.8rem,2vw,1.6rem);
@@ -259,7 +259,7 @@ header.app .brand{display:flex;align-items:center;gap:clamp(.6rem,1.5vw,1.2rem);
 header.app .clockbox{justify-self:center;text-align:center;line-height:1.05}
 header.app .clockbox .time{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:clamp(1.7rem,4.8vw,3.2rem);font-weight:800;font-variant-numeric:tabular-nums;color:#fff}
 header.app .clockbox .state{font-size:clamp(.6rem,1.2vw,.95rem);font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#cfe0f5}
-header.app .aux{justify-self:end;text-align:right;color:#cfe0f5;font-weight:700;white-space:nowrap}
+header.app .aux{grid-column:3;justify-self:end;text-align:right;color:#cfe0f5;font-weight:700;white-space:nowrap}
 header.app .aux .nrlabel{display:block;font-size:clamp(.55rem,1vw,.8rem);text-transform:uppercase;letter-spacing:.08em;opacity:.85}
 header.app .aux b{display:block;font-size:clamp(1rem,2.2vw,1.6rem);font-variant-numeric:tabular-nums}
 /* clock state colors, readable on the navy header */
@@ -269,7 +269,9 @@ header.app .aux b{display:block;font-size:clamp(1rem,2.2vw,1.6rem);font-variant-
 .state-ended .time,.state-ended .state{color:#ff6b6b}
 .state-next .time,.state-next .state{color:#cfe0f5}
 .state-prealarm,.state-ended{animation:none}
-.state-ended .time,.state-ended .state{animation:textpulse 1.2s step-end infinite}
+/* blink only while the clock still runs but every board is final; once the
+   round is over the clock sits steady red */
+.state-alldone .time,.state-alldone .state{animation:textpulse 1.2s step-end infinite}
 @keyframes textpulse{0%,100%{opacity:1}50%{opacity:.45}}
 /* ---- Live matches column header ---- */
 .match.head{position:sticky;top:0;background:var(--panel);z-index:2;border-bottom:2px solid var(--line)}
