@@ -21,3 +21,5 @@ code { background: #f0f0f0; padding: 1px 4px; border-radius: 3px; }
 button.secondary { background: #fff; color: #b3261e; border-color: #e0aaa6; }
 button.secondary:hover { background: #fdf2f1; }
 .mono { font-family: ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; margin: 8px 0; color: #555; }
+.logorow { display: flex; align-items: center; gap: 12px; margin: 10px 0; }
+.logopreview { width: 52px; height: 52px; object-fit: contain; background: #0b4e93; border-radius: 8px; padding: 6px; display: none; }

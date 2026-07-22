@@ -7,6 +7,23 @@ async function getConfig() {
   return config || {};
 }
 
+// undefined = keep whatever's already saved; null = cleared; string = new logo
+let pendingLogoDataUrl;
+
+function refreshLogoPreview(dataUrl) {
+  const img = $('logoPreview');
+  const empty = $('logoEmpty');
+  if (dataUrl) {
+    img.src = dataUrl;
+    img.style.display = '';
+    empty.style.display = 'none';
+  } else {
+    img.removeAttribute('src');
+    img.style.display = 'none';
+    empty.style.display = '';
+  }
+}
+
 async function load() {
   const c = await getConfig();
   const p = c.publish || {};
@@ -15,6 +32,8 @@ async function load() {
   $('totalRounds').value = c.totalRounds || 8;
   $('pollSeconds').value = c.pollSeconds || 30;
   $('debug').checked = !!c.debug;
+  pendingLogoDataUrl = undefined;
+  refreshLogoPreview(c.hostLogoDataUrl || '');
   $('pubEnabled').checked = !!p.enabled;
   $('pubOwner').value = p.owner || '';
   $('pubRepo').value = p.repo || '';
@@ -23,6 +42,31 @@ async function load() {
   $('pubToken').value = p.token || '';
   renderStats();
 }
+
+const MAX_LOGO_BYTES = 2 * 1024 * 1024; // storage.local quota is shared — keep logos small
+$('hostLogo').addEventListener('change', () => {
+  const file = $('hostLogo').files[0];
+  $('logoMsg').textContent = '';
+  if (!file) return;
+  if (file.size > MAX_LOGO_BYTES) {
+    $('logoMsg').textContent = `That image is ${(file.size / 1024 / 1024).toFixed(1)} MB — please pick one under 2 MB.`;
+    $('hostLogo').value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    pendingLogoDataUrl = reader.result;
+    refreshLogoPreview(pendingLogoDataUrl);
+  };
+  reader.readAsDataURL(file);
+});
+
+$('hostLogoClear').addEventListener('click', () => {
+  pendingLogoDataUrl = null;
+  $('hostLogo').value = '';
+  $('logoMsg').textContent = '';
+  refreshLogoPreview('');
+});
 
 async function renderStats() {
   const { logs, debug, data } = await chrome.storage.local.get(['logs', 'debug', 'data']);
@@ -54,6 +98,7 @@ $('save').addEventListener('click', async () => {
     totalRounds: Math.max(1, Number($('totalRounds').value) || 8),
     pollSeconds: Math.max(30, Number($('pollSeconds').value) || 30),
     debug: $('debug').checked,
+    hostLogoDataUrl: pendingLogoDataUrl === undefined ? (cur.hostLogoDataUrl || '') : (pendingLogoDataUrl || ''),
     publish: {
       enabled: $('pubEnabled').checked,
       owner: $('pubOwner').value.trim(),

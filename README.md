@@ -138,6 +138,39 @@ Same dashboard, same data — just a different way through the gate.
 
 ---
 
+## QR code to the live SoL page
+
+A small QR code floats in the bottom-right corner, linking to the configured SoL URL so
+people nearby can pull up the official page on their own phone. It's only useful early on
+(before players know where to find it themselves), so it **auto-hides from round 3 on**.
+Before that, you can also dismiss it early:
+
+- Click the QR box on the dashboard itself.
+- Toggle **Hide QR on dashboard** in the popup.
+
+Both write the same `showQR` setting (`chrome.storage.local`), so either one sticks.
+In `standalone.html` (no `chrome.storage`), it's session-only: click to hide, or relaunch
+with `&qr=0` to force it off entirely, or `&qr=1` to force it on past round 3.
+QR rendering uses a vendored copy of
+[qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) (MIT) — `src/qrcode.js`
+for the extension, inlined in `standalone.html` to keep that file dependency-free.
+
+## Host association logo
+
+The header's top-left icon defaults to a plain carrom board, but you can replace it with
+the logo of the association actually hosting the event:
+
+- **Extension:** Options → **Branding** → pick an image (stored locally as a data URL,
+  under ~500 KB recommended). **Remove** reverts to the default icon.
+- **`standalone.html`:** pass `&logo=<image URL>` in the launch URL.
+
+Either way, if the logo is unset or fails to load, the default board icon is shown instead.
+(SoL's "lit" page has no image for the host — it exposes a "Club" field with a logo, but
+that's usually the confederation running the rating, not the local hosting association, so
+there's nothing to reliably auto-detect here.)
+
+---
+
 ## Notes & limits
 
 - **One field per file.** Singles and doubles are separate SoL tournaments; run one dashboard per tournament URL.

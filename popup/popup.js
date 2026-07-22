@@ -28,6 +28,12 @@ async function refresh() {
   if (!hasUrl) {
     $('msg').textContent = 'Set a SoL URL in Options to start.';
   }
+
+  // QR (to the live SoL page), floating on the corridor dashboard — it
+  // auto-hides from round 3 on, but this forces it off earlier if wanted.
+  const qrOn = config.showQR !== false;
+  $('qrtoggle').textContent = qrOn ? 'Hide QR on dashboard' : 'Show QR on dashboard';
+  $('qrtoggle').disabled = !hasUrl;
 }
 
 $('toggle').addEventListener('click', async () => {
@@ -44,5 +50,11 @@ $('dash').addEventListener('click', () =>
 );
 $('opts').addEventListener('click', () => chrome.runtime.openOptionsPage());
 $('export').addEventListener('click', exportDebugBundle);
+$('qrtoggle').addEventListener('click', async () => {
+  const { config } = await chrome.storage.local.get('config');
+  const cur = config || {};
+  await chrome.storage.local.set({ config: { ...cur, showQR: cur.showQR === false } });
+  refresh();
+});
 
 refresh();

@@ -36,6 +36,27 @@
     </section>
 
     <section>
+      <h2>Branding <span class="badge">optional</span></h2>
+      <p class="hint">
+        Logo of the association hosting the event, shown top-left of the corridor
+        dashboard in place of the default carrom board icon. (SoL's own tourney page
+        doesn't expose an image for this — only a "Club" field, which is usually the
+        confederation running the rating, not the local host — so there's nothing to
+        auto-detect.) Small PNG/SVG with a transparent background works best — keep it
+        under ~500 KB, it's stored in the extension's local storage.
+      </p>
+      <div class="logorow">
+        <img id="logoPreview" class="logopreview" alt="Host association logo" />
+        <span id="logoEmpty" class="hint">Using the default board icon.</span>
+      </div>
+      <div class="actions">
+        <input id="hostLogo" type="file" accept="image/*" />
+        <button id="hostLogoClear" type="button" class="secondary">Remove</button>
+      </div>
+      <p id="logoMsg" class="hint"></p>
+    </section>
+
+    <section>
       <h2>Publish to GitHub <span class="badge">optional</span></h2>
       <p class="hint">
         Leave disabled for local-only use. Enable to push <code>data.json</code> to a

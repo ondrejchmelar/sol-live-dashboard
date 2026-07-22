@@ -557,19 +557,70 @@ function showEmpty(status){
   document.title="SoL Live Dashboard";
 }
 
+// Logo of the association hosting the event (top-left of the header): swap in
+// the uploaded logo (Options → Branding) when there's one, falling back to the
+// bundled board icon — both when unset and if the configured logo ever fails
+// to load. (SoL's "lit" page has no image for the actual host — only a "Club"
+// emblem, a different field — so this is manual-only, no auto-detection.)
+const FALLBACK_LOGO_SRC=document.getElementById("logoImg").getAttribute("src");
+let logoAppliedSrc=null;
+function applyLogo(config){
+  const img=document.getElementById("logoImg");
+  if(!img) return;
+  const wanted=(config && config.hostLogoDataUrl) || FALLBACK_LOGO_SRC;
+  if(wanted===logoAppliedSrc) return;
+  img.onerror=()=>{
+    if(img.src!==FALLBACK_LOGO_SRC){ img.onerror=null; img.src=FALLBACK_LOGO_SRC; logoAppliedSrc=FALLBACK_LOGO_SRC; }
+  };
+  img.src=wanted;
+  logoAppliedSrc=wanted;
+}
+
+// QR code to the live SoL page, floating bottom-right. Only useful early in an
+// event (before people know where to look) — auto-hidden from round 3 on;
+// the operator can also click it, or use the popup toggle, to dismiss it early.
+let qrRenderedFor=null;
+function renderQR(config){
+  const box=document.getElementById("qrBox");
+  if(!box) return;
+  const url=config && config.targetUrl && config.targetUrl.trim();
+  const round=DATA && DATA.event ? DATA.event.currentRound : null;
+  const pastRound2=round!=null && round>2;
+  const show=!!url && config.showQR!==false && !pastRound2;
+  box.classList.toggle("show",show);
+  if(!show || qrRenderedFor===url) return;
+  try{
+    const qr=qrcode(0,"M");
+    qr.addData(url);
+    qr.make();
+    document.getElementById("qrImg").innerHTML=qr.createSvgTag({scalable:true,margin:2});
+    qrRenderedFor=url;
+  }catch(e){
+    console.warn("[qr] render failed:",e);
+    box.classList.remove("show");
+  }
+}
+document.getElementById("qrBox").addEventListener("click",()=>{
+  chrome.storage.local.get("config",({config})=>{
+    chrome.storage.local.set({config:{...(config||{}),showQR:false}});
+  });
+});
+
 function boot(){
-  chrome.storage.local.get(["data","status"],({data,status})=>{
+  chrome.storage.local.get(["data","status","config"],({data,status,config})=>{
     const anubis=status && status.state==="anubis";
     if(!anubis && data && data.event && Array.isArray(data.standings)) start(data);
     else showEmpty(status);
     refreshFooter();
     applyStatus(status);
+    renderQR(config||{});
+    applyLogo(config||{});
   });
 }
 
-// Re-render whenever the poller writes new data/status.
+// Re-render whenever the poller writes new data/status, or config changes (e.g. the QR toggle).
 chrome.storage.onChanged.addListener((ch,area)=>{
-  if(area==="local" && (ch.data||ch.status)) boot();
+  if(area==="local" && (ch.data||ch.status||ch.config)) boot();
 });
 boot();
 

@@ -8,6 +8,11 @@ export const DEFAULT_CONFIG = {
   pollSeconds: 60,        // clamped to >= 30 by the alarm scheduler
   polling: false,         // whether the background poller is active
   debug: false,           // verbose logging (persist debug-level lines too)
+  showQR: true,           // corridor dashboard: QR code linking to the live SoL page
+                          // (handy before ~round 3, then usually toggled off in the popup)
+  hostLogoDataUrl: '',    // logo of the association hosting the event (data: URL, set in
+                          // Options) — top-left of the corridor dashboard, replacing the
+                          // default carrom board icon
   publish: {
     enabled: false,       // OFF until you fill in the GitHub fields below
     owner: '',
