@@ -33,6 +33,12 @@ Everything that touches the live site must run **locally** (a personal git/SSH a
 Claude Code web sandbox is firewalled from `sol5.metapensiero.it` and can't push to the repo. This environment's Bash
 sandbox seccomp is broken — run Bash with `dangerouslyDisableSandbox: true`.
 
+**The local CLI *can* reach SoL**, so live bytes are capturable without a browser: port the Anubis solve to a script
+(GET the page, read the `#anubis_challenge` JSON, brute-force `sha256hex(randomData + nonce)` for `difficulty`
+leading zeros — 4 today, ~15 ms in Python — then GET `pass-challenge` to bank the cookie). Headless Chrome with
+`--disable-web-security --user-data-dir=…` also runs the real dashboard end to end against live SoL, which is the
+strongest available test.
+
 Launch the standalone (Linux; macOS/Windows equivalents in the file's header comment):
 
 ```
@@ -60,8 +66,18 @@ google-chrome --disable-web-security --user-data-dir="/tmp/sol-dash" \
 
 ### Ranking table (`table.ranking`)
 - Header **"Team"** ⇒ doubles, **"Player"** ⇒ singles. Names are **"Surname Firstname"** (Czech order); doubles
-  competitors joined by ` and `. When **prized**, a prize/total column appears (`td.total` / header "Prize") — the
-  `final` state marker (not yet verified against real prized bytes).
+  competitors joined by ` and `. When **prized**, a prize/total column appears — **verified** against the finished
+  28th Eurocup Singles: `<th class="center aligned sortedby total-header">Prize</th>` plus one
+  `<td class="right aligned sortedby total">` per row. Both the `td.total` and the "Prize" header check match.
+
+### Club emblems (`/lit/club/{guid}`, `/lit/emblem/{hash}.{ext}`)
+- A tourney names **two** clubs in its details table: **"Club"** owns the championship, **"Hosted by"** actually runs
+  the event. The `<img id="emblem">` inside `<div id="club_emblem">` on the *tourney* page is the **championship
+  owner's** — on Eurocup 2026 it's the European Carrom Confederation, while the organiser is the Czech Carrom
+  Association. So the organiser's emblem is only reachable by following the "Hosted by" link to `/lit/club/{guid}`,
+  whose page carries its own `<img id="emblem" src="/lit/emblem/{hash}.{ext}" title="{club name}">`.
+- Emblem **extensions vary** (`.bmp` for ECC, `.png` for CCA) — SoL serves whatever the club uploaded, so never
+  assume PNG and never assume a sane aspect ratio; that's why the header emblem has an operator off-switch.
 
 ### Matches table (`table.matches`, `?turn=N`)
 - **`<tr class="partial-score">` = the match is NOT final** (covers 0:0 not-started and a running QR score). Its
@@ -113,8 +129,20 @@ already scored (so "Round ended" holds until new pairings are drawn).
   All three are tuned so the longest expected names fit unclipped at 4K — singles "WEERAWARNAKULA Haritha" (368px at
   the 1.35rem font cap), doubles "BANKOVIC Aleksandar/PAVLOVIC Aleksandar" (596px); longer names may ellipsize.
   Fonts rem-based (`html{font-size:20px}`) so browser zoom scales everything.
+- **Header emblem** (standalone only): `resolveEmblem()` resolves **both** clubs — `EMBLEM.host` (the "Hosted by"
+  organiser) and `EMBLEM.owner` (the championship club, free from the tourney page's own `#emblem`, so still just
+  **one** fetch, for the host). Fires after the first render and must never block or delay it. Cached per tournament
+  URL: successes persisted, a miss remembered for the session only so a transient failure doesn't disable it
+  permanently. One setting, `EMBLEM_MODE` ∈ `host|owner|off`, chooses; `emblemPick()` falls back to the other club
+  when the chosen one has no emblem. Priority: `&logo=` → chosen club → other club → bundled board icon. `off`
+  exists because emblem formats and aspect ratios are arbitrary (see the SoL notes) — keep the operator's off-switch,
+  and keep `syncEmblemUI()` naming the real clubs in the dropdown ("Hosting club — Czech Carrom Association"), since
+  the bare roles are meaningless to an operator.
+  **The cache load shape-checks (`"host" in e || "owner" in e`), not just the URL** — an entry written by the earlier
+  single-emblem build has `{src,title,tried:true}`, and matching on URL alone made `resolveEmblem` skip forever and
+  strand the header on the board icon. Any future change to the cached shape needs the same guard.
 - **Settings panel** (standalone only): the **single** editor for every operator setting — message, next-round time,
-  break, total rounds, zoom, QR toggle. Four ways in, all `openSettings()`: the logo (`#logoBtn`, gear badge on
+  break, total rounds, zoom, QR toggle, emblem toggle. Four ways in, all `openSettings()`: the logo (`#logoBtn`, gear badge on
   hover), the Space key, the clock's next-round block, and the "Round n / N" subtitle. There are deliberately **no
   per-setting dialogs any more**; don't reintroduce one. It opens in a **detached `window.open`** so the operator can
   drag it off the projector and type unseen, falling back to `#settingsOverlay` when the popup is blocked — so every
@@ -163,7 +191,8 @@ already scored (so "Round ended" holds until new pairings are drawn).
 
 ## Known limitations / TODO
 
-- `final`/`prized` state is unverified against real prized bytes — capture the lit HTML when a tournament finishes.
+- ~~`final`/`prized` unverified~~ — **done**: verified against the finished 28th Eurocup Singles (see the ranking
+  table notes). The decided best-of-three final and the prized ranking both render correctly from live bytes.
 - Pre-round shows a label only; a live pre-round countdown is impossible without a server anchor from SoL.
 - `gh-pages/` is an old, simple `data.json` dashboard, not the corridor design — only relevant if publish is used.
 - The standalone's in-page Anubis solver is the weak point if Anubis changes; the extension is the fallback then.

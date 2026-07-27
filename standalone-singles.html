@@ -456,7 +456,11 @@ body>.sset{width:auto;border-radius:0}
 .sset label{display:flex;align-items:center;justify-content:space-between;gap:.8em;font-weight:600}
 .sset label.col{flex-direction:column;align-items:stretch;gap:.35em}
 .sset textarea{font:inherit;padding:.6em;border:1px solid var(--s-line);border-radius:8px;resize:vertical;min-height:4.5em}
-.sset input[type=time],.sset input[type=number]{font:inherit;padding:.35em .5em;border:1px solid var(--s-line);border-radius:8px}
+.sset input[type=time],.sset input[type=number],.sset select{font:inherit;padding:.35em .5em;border:1px solid var(--s-line);border-radius:8px;background:#fff;color:inherit}
+.sset select{max-width:60%}
+/* Club names are long ("European Carrom Confederation") — a stacked label gives the
+   option text the full panel width instead of ellipsizing it. */
+.sset label.col select{max-width:none;width:100%}
 .sset input[type=number]{width:5.5em}
 .sset input[type=checkbox]{width:1.15em;height:1.15em}
 .sset .zrow{display:flex;align-items:center;gap:.5em}
@@ -546,6 +550,14 @@ body>.sset{width:auto;border-radius:0}
       </span>
     </label>
     <label>Show QR code <input type="checkbox" id="setQr"></label>
+    <label class="col">Header emblem
+      <select id="setEmblem">
+        <option value="host">Hosting club</option>
+        <option value="owner">Championship owner</option>
+        <option value="off">None — board icon</option>
+      </select>
+    </label>
+    <p class="hint" id="setEmblemHint"></p>
     <div class="row">
       <span class="note" id="setNote">Applied ✓</span>
       <button type="button" id="setClose">Close</button>
@@ -2892,19 +2904,62 @@ const CONFIG = {
   qrForceOn: Q.get("qr") === "1",
   qrForceOff: Q.get("qr") === "0",
   // Logo of the association actually hosting the event (any URL — runs with
-  // --disable-web-security anyway). SoL's "lit" page has no image for this
-  // (only a "Club" emblem, which is a different field) — falls back to the
-  // bundled board icon when unset or if it fails to load.
+  // --disable-web-security anyway). Overrides the emblem auto-detected from SoL;
+  // both fall back to the bundled board icon when unset or if the image fails.
   hostLogoUrl: Q.get("logo") || "",
 };
 
-// Host association's logo (top-left of the header) — falls back to the
-// bundled board icon when unset or if it fails to load.
+/* Header logo, in priority order: &logo= override, then a club emblem auto-detected
+   from SoL (see resolveEmblem), then the bundled board icon.
+
+   Resolved emblems are cached per tournament URL so a previous tournament's club can't
+   leak into a new one (same rule as the learned idtourney). BOTH clubs are resolved —
+   `host` is the "Hosted by" organiser, `owner` the championship's club — so switching
+   between them is instant and never re-fetches. Each is {src,title} or null. */
+const EMBLEM_KEY = "solDash.emblem";
+let EMBLEM = { url: null, host: null, owner: null, tried: false };
+try {
+  const e = JSON.parse(localStorage.getItem(EMBLEM_KEY) || "null");
+  // Shape check, not just a URL match: an entry cached by an older build has {src,title}
+  // and no host/owner, and its `tried` flag would make resolveEmblem skip forever —
+  // leaving the header stuck on the board icon. Discard anything that isn't this shape.
+  if (e && e.url === CONFIG.targetUrl && ("host" in e || "owner" in e)) EMBLEM = e;
+} catch (e) {}
+
+/* One setting drives the header emblem: which club, or none. "off" matters because SoL
+   accepts whatever image a club uploaded — some are BMPs or odd aspect ratios that look
+   wrong blown up on a 4K header — so the operator needs a way out without relaunching.
+   Default "host": the association actually running the event is normally the one that
+   belongs on its own venue screen. */
+const EMBLEM_MODE_KEY = "solDash.emblemMode";
+const EMBLEM_MODES = ["host", "owner", "off"];
+let EMBLEM_MODE = "host";
+try {
+  const v = localStorage.getItem(EMBLEM_MODE_KEY);
+  if (EMBLEM_MODES.includes(v)) EMBLEM_MODE = v;
+} catch (e) {}
+
+// The chosen club, falling back to the other one when the choice has no emblem —
+// better the other club's badge than a placeholder board.
+function emblemPick(){
+  if (EMBLEM_MODE === "off") return null;
+  const first = EMBLEM_MODE === "owner" ? EMBLEM.owner : EMBLEM.host;
+  return first || EMBLEM.owner || EMBLEM.host || null;
+}
+
+function setEmblemMode(mode){
+  EMBLEM_MODE = EMBLEM_MODES.includes(mode) ? mode : "host";
+  try { localStorage.setItem(EMBLEM_MODE_KEY, EMBLEM_MODE); } catch (e) {}
+  applyLogo();
+}
+
 let logoAppliedSrc = null;
 function applyLogo(){
   const img = document.getElementById("logoImg");
   const fallback = document.getElementById("logoFallback");
-  const wanted = CONFIG.hostLogoUrl || null;
+  const em = emblemPick();
+  const wanted = CONFIG.hostLogoUrl || (em && em.src) || null;
+  img.alt = em && wanted === em.src ? (em.title || "") : "";
   if (!wanted) {
     img.style.display = "none"; fallback.style.display = ""; logoAppliedSrc = null;
     return;
@@ -3058,6 +3113,7 @@ function parseTourney(html){
   const preCountdown = extractPreCountdown(doc);
   const currentTurn = detectCurrentTurn(doc);
   const final = parseFinalInfo(doc);
+  const emblem = parseEmblem(doc);
 
   if (!table){
     // Before the first round there is no ranking table yet — still surface the prep timer.
@@ -3067,6 +3123,7 @@ function parseTourney(html){
     t.currentTurn = currentTurn;
     t.details = details;
     t.final = final;
+    t.emblem = emblem;
     return t;
   }
 
@@ -3093,7 +3150,7 @@ function parseTourney(html){
 
   return {
     status: "ok", tournament, type, currentTurn,
-    totalRounds: null, prized, idtourney, preCountdown, final, headers, rankIndex, playerIndex, details, standings,
+    totalRounds: null, prized, idtourney, preCountdown, final, emblem, headers, rankIndex, playerIndex, details, standings,
     _diag: { tablesFound, rowsParsed: standings.length, idtourney, currentTurn, prized, type, final },
   };
 }
@@ -3215,6 +3272,39 @@ function parseDetails(doc){
         if (k && v && !out[k]) out[k] = v;
       }
     }
+  }
+  return out;
+}
+
+/* Club emblem sources on a tourney page. SoL tracks TWO clubs and the details table
+   names both: "Club" owns the championship, "Hosted by" is the club actually running
+   the event. The <img id="emblem"> on the tourney page is the *championship owner's* —
+   verified against the live Eurocup 2026 page, which shows the European Carrom
+   Confederation while the organiser is the Czech Carrom Association. So collect the
+   links to both club pages (each carries its own #emblem) plus whatever the tourney
+   page itself shows, and let resolveEmblem() prefer the host. */
+function parseEmblem(doc){
+  const out = { hostedByHref: "", hostedByName: "", clubHref: "", clubName: "", pageSrc: "", pageTitle: "" };
+  for (const t of doc.querySelectorAll("table.definition")){
+    for (const tr of t.querySelectorAll("tr")){
+      const tds = tr.querySelectorAll("td");
+      if (tds.length < 2) continue;
+      const k = normalize(tds[0].textContent);          // "Hosted by" -> "hostedby"
+      const a = tds[1].querySelector("a[href]");
+      if (!a) continue;
+      if (k === "hostedby" && !out.hostedByHref){
+        out.hostedByHref = a.getAttribute("href");
+        out.hostedByName = cleanText(a.textContent);
+      } else if (k === "club" && !out.clubHref){
+        out.clubHref = a.getAttribute("href");
+        out.clubName = cleanText(a.textContent);
+      }
+    }
+  }
+  const img = doc.querySelector("#emblem, #club_emblem img");
+  if (img){
+    out.pageSrc = img.getAttribute("src") || "";
+    out.pageTitle = cleanText(img.getAttribute("title"));
   }
   return out;
 }
@@ -3418,6 +3508,54 @@ function withTurn(base, turn){
   return u.href;
 }
 
+/* Resolve the hosting club's emblem — one extra fetch, once per tournament.
+
+   SoL names two clubs on a tourney: "Club" (owns the championship) and "Hosted by"
+   (runs the event). The emblem printed on the tourney page is the championship
+   owner's, NOT the organiser's, so prefer the "Hosted by" club's own page, fall back
+   to the "Club" page, and only then to the tourney page's own emblem. Each club page
+   carries <img id="emblem" src="/lit/emblem/<hash>.<ext>" title="<club name>">.
+
+   Best-effort throughout: any failure just leaves the bundled board icon. Successes
+   are persisted; a miss is remembered for the session only, so a transient error
+   doesn't disable the emblem until someone clears storage. */
+async function clubEmblem(href){
+  const u = new URL(href, CONFIG.targetUrl).href;
+  const r = await fetchTarget(u);
+  if (!r.ok || r.anubis) return null;
+  const doc = new DOMParser().parseFromString(r.html, "text/html");
+  const img = doc.querySelector("#emblem, #club_emblem img");
+  const src = img && img.getAttribute("src");
+  if (!src) return null;
+  return { src: new URL(src, u).href, title: cleanText(img.getAttribute("title")) };
+}
+
+async function resolveEmblem(rank){
+  if (CONFIG.hostLogoUrl) return;                              // manual override wins
+  if (EMBLEM.url === CONFIG.targetUrl && EMBLEM.tried) return; // already settled this tournament
+  const e = rank.emblem || {};
+  // The championship owner's emblem is the one already printed on the tourney page, so
+  // it costs nothing; only the organiser needs the extra club-page fetch.
+  let owner = e.pageSrc ? { src: new URL(e.pageSrc, CONFIG.targetUrl).href, title: e.pageTitle || "" } : null;
+  let host = null;
+  if (e.hostedByHref){
+    try { host = await clubEmblem(e.hostedByHref); } catch (err) { console.warn("[emblem] host club failed:", err); }
+  }
+  if (!owner && e.clubHref){
+    try { owner = await clubEmblem(e.clubHref); } catch (err) { console.warn("[emblem] owner club failed:", err); }
+  }
+  if (!host && !owner && e.hostedByName){
+    console.warn("[emblem] no emblem found for", e.hostedByName);
+  }
+  EMBLEM = { url: CONFIG.targetUrl, host, owner, tried: true,
+             hostName: e.hostedByName || "", ownerName: e.clubName || "" };
+  if (host || owner){
+    try { localStorage.setItem(EMBLEM_KEY, JSON.stringify(EMBLEM)); } catch (err) {}
+  }
+  applyLogo();
+  syncEmblemUI();   // refresh the settings panel's labels if it's open
+}
+
 async function poll(){
   if (polling) return;
   polling = true;
@@ -3506,6 +3644,9 @@ async function poll(){
     if (TOTAL_ROUNDS) data.event.totalRounds = TOTAL_ROUNDS;
     start(data);
     applyStatus({ state: "ok", message: "" });
+
+    // After the board is up: the emblem costs a fetch and must never delay the render.
+    resolveEmblem(rank).catch((e) => console.warn("[emblem] resolve failed:", e));
   } catch (e) {
     console.error("[poll] failed:", e);
     // Keep the last good board on screen; only blank out if we never rendered.
@@ -3788,11 +3929,14 @@ function mountSettings(doc, root){
   $("setBreak").value = BREAK_MIN;
   $("setRounds").value = TOTAL_ROUNDS || "";
   $("setQr").checked = document.getElementById("qrBox").classList.contains("show");
+  $("setEmblem").value = EMBLEM_MODE;
   // Zoom and the QR toggle are direct manipulations — they apply on the spot, so the
   // operator can watch the big screen while nudging them. Text fields wait for Apply.
   $("setZoomOut").addEventListener("click", () => setZoom(ZOOM - ZOOM_STEP));
   $("setZoomIn").addEventListener("click", () => setZoom(ZOOM + ZOOM_STEP));
   $("setQr").addEventListener("change", (e) => setQRVisible(e.target.checked));
+  $("setEmblem").addEventListener("change", (e) => { setEmblemMode(e.target.value); syncEmblemUI(); });
+  syncEmblemUI();
   $("setApply").addEventListener("click", applySettings);
   $("setClose").addEventListener("click", closeSettings);
   syncZoomReadout();
@@ -3813,6 +3957,35 @@ function setQRVisible(on){
   CONFIG.qrForceOff = !on;
   renderQR();
 }
+/* Name the actual clubs in the dropdown once they're known — "Hosting club" and
+   "Championship owner" mean nothing until you see that they're the Czech Carrom
+   Association and the European Carrom Confederation. Re-run when resolution lands,
+   since the panel may already be open by then. */
+function syncEmblemUI(){
+  const doc = settingsHost();
+  const sel = doc && doc.getElementById("setEmblem");
+  if (!sel) return;
+  const label = (base, name, em) =>
+    base + (name ? " — " + name : "") + (em ? "" : " (no emblem)");
+  sel.options[0].textContent = label("Hosting club", EMBLEM.hostName, EMBLEM.host);
+  sel.options[1].textContent = label("Championship owner", EMBLEM.ownerName, EMBLEM.owner);
+  sel.value = EMBLEM_MODE;
+
+  const hint = doc.getElementById("setEmblemHint");
+  if (!hint) return;
+  const shown = emblemPick();
+  if (CONFIG.hostLogoUrl) hint.textContent = "Overridden by &logo= in the launch URL.";
+  else if (EMBLEM_MODE === "off") hint.textContent = "Using the bundled board icon.";
+  else if (!shown) hint.textContent = EMBLEM.tried
+    ? "No emblem published on SoL for either club."
+    : "Looking up the club emblem…";
+  else if (EMBLEM_MODE === "host" && !EMBLEM.host)
+    hint.textContent = "The host club has no emblem — showing " + (shown.title || "the other club") + ".";
+  else if (EMBLEM_MODE === "owner" && !EMBLEM.owner)
+    hint.textContent = "The championship club has no emblem — showing " + (shown.title || "the other club") + ".";
+  else hint.textContent = "Showing " + (shown.title || "the club emblem") + ".";
+}
+
 function syncQRCheckbox(){
   const doc = settingsHost();
   const box = doc && doc.getElementById("setQr");

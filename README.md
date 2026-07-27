@@ -110,6 +110,7 @@ popup, the same panel falls back to an in-page dialog.
 | **Total rounds** | The "/ N" in "Round n / N". Swiss events don't publish this. Empty hides it. |
 | **Screen zoom** | Same 5 % steps as the footer control below. |
 | **Show QR code** | Hides the QR now, or forces it back after its round-3 auto-hide. |
+| **Header emblem** | Which club's emblem to show, or none — see below. |
 
 Text fields apply on **Apply**; zoom and the QR toggle take effect immediately, so you can nudge
 them while watching the big screen.
@@ -217,17 +218,40 @@ for the extension, inlined in `standalone.html` to keep that file dependency-fre
 
 ## Host association logo
 
-The header's top-left icon defaults to a plain carrom board, but you can replace it with
-the logo of the association actually hosting the event:
+The header's top-left icon shows the **hosting club's emblem from SoL, automatically** —
+no configuration. `standalone.html` reads the tournament's **"Hosted by"** club and picks up
+that club's emblem, once per tournament.
 
-- **Extension:** Options → **Branding** → pick an image (stored locally as a data URL,
-  under ~500 KB recommended). **Remove** reverts to the default icon.
-- **`standalone.html`:** pass `&logo=<image URL>` in the launch URL.
+Worth knowing *why* it's the "Hosted by" club: SoL records two clubs per tournament. **"Club"**
+owns the championship, **"Hosted by"** is the association actually running the event — and the
+emblem printed on the tournament page is the *former*. At the 2026 Eurocup that page shows the
+European Carrom Confederation, while the organiser is the Czech Carrom Association. So the
+dashboard follows the "Hosted by" link to that club's own page and takes the emblem from there,
+falling back to the championship club, then to the plain board icon.
 
-Either way, if the logo is unset or fails to load, the default board icon is shown instead.
-(SoL's "lit" page has no image for the host — it exposes a "Club" field with a logo, but
-that's usually the confederation running the rating, not the local hosting association, so
-there's nothing to reliably auto-detect here.)
+**Header emblem** in the settings panel picks between them, naming the actual clubs so you
+don't have to remember which is which:
+
+| Option | Shows |
+| --- | --- |
+| **Hosting club** (default) | e.g. "Hosting club — Czech Carrom Association" |
+| **Championship owner** | e.g. "Championship owner — European Carrom Confederation" |
+| **None — board icon** | The bundled placeholder |
+
+Both are looked up once and kept, so switching is instant. "None" is there because SoL accepts
+whatever image a club uploaded — emblems come in different formats (`.bmp` and `.png` both
+occur) and arbitrary aspect ratios — so if one looks wrong blown up on a 4K header, switch it
+off. The choice is remembered.
+
+Also:
+
+- **`&logo=<image URL>`** in the launch URL wins over everything — use it for a sponsor or a
+  local-club logo that isn't in SoL.
+- **Extension:** Options → **Branding** → pick an image (stored locally as a data URL, under
+  ~500 KB recommended). **Remove** reverts to the default icon. The extension does **not**
+  auto-detect the emblem — that's `standalone.html` only.
+
+If an image is unset or fails to load, the default board icon is shown.
 
 ---
 
