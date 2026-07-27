@@ -320,12 +320,13 @@ header.app .aux b{display:block;font-size:clamp(1rem,2.2vw,1.6rem);font-variant-
 }
 .qrbox .qrimg{width:clamp(90px,10vw,130px);height:clamp(90px,10vw,130px)}
 .qrbox .qrimg svg{display:block;width:100%;height:100%}
-/* clock state colors, readable on the navy header */
-.state-running .time{color:#fff}
-.state-running .state{color:#7cfc9b}
-.state-prealarm .time,.state-prealarm .state{color:#ffb84d}
-.state-ended .time,.state-ended .state{color:#ff6b6b}
-.state-next .time,.state-next .state{color:#cfe0f5}
+/* Clock state colors on the navy header. Scoped under header.app so they outrank
+   `header.app .clockbox .time/.state` (same specificity → later wins); without the
+   prefix the white/pale-blue defaults would swallow these. Running keeps the default
+   (white time, pale-blue label); only prealarm/ended/next recolor. */
+header.app .state-prealarm .time,header.app .state-prealarm .state{color:#ffb84d}
+header.app .state-ended .time,header.app .state-ended .state{color:#ff6b6b}
+header.app .state-next .time,header.app .state-next .state{color:#cfe0f5}
 .state-prealarm,.state-ended{animation:none}
 /* blink only while the clock still runs but every board is final; once the
    round is over the clock sits steady red */
