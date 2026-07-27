@@ -167,6 +167,9 @@ already scored (so "Round ended" holds until new pairings are drawn).
 - **Standings rank pills:** snug, digits centred, **right-aligned** so every pill's right edge lines up and the gap to
   the name is constant for 1–3 digit ranks (`col.cg-r` sized to hold a 3-digit pill without overflow). 100+ players
   are expected.
+- **Manual scrolling:** the wheel (and touch drag) nudge the same `pos` the autoscroll drives, rather than making
+  `.sclip` natively scrollable — going native would give up the GPU-composited transform below. A manual scroll holds
+  the automatic drift off for `SCROLL_MANUAL_MS` (10 s), then it resumes from wherever the operator left it.
 - **Performance (a hard-won fix — see the CSS comments):** never use smooth `infinite` CSS animations. The pulsing
   "live"/prealarm indicators use **discrete `step-end`** keyframes (the "live" dot is an eased multi-stop breathing
   curve on `step-end`), and autoscroll drives a **GPU `transform: translateY`** throttled to ~20fps (`SCROLL_FRAME_MS`)

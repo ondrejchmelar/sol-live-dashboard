@@ -121,6 +121,16 @@ part of the header you want to change — the **next-round time** or the **"Roun
 
 ---
 
+## Scrolling
+
+Both panels drift up and down on their own so a long field cycles into view. You can also
+**scroll either panel by hand** — mouse wheel, or drag on a touchscreen — and the panel you
+scroll moves independently of the other. The automatic drift pauses for 10 seconds after you
+touch it, then picks up again from wherever you left it, so an unattended screen always returns
+to cycling on its own.
+
+---
+
 ## Zoom (fitting the screen)
 
 The whole layout is sized in `rem`, so it scales as one piece. Browser zoom works, but its steps

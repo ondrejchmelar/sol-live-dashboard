@@ -3672,6 +3672,7 @@ const LABELS = {
 const SCROLL_SPEED = 28;      // px/sec vertical drift
 const SCROLL_PAUSE_MS = 2000; // pause at top and bottom
 const SCROLL_FRAME_MS = 50;   // ~20fps cap; drift is slow so fewer frames look identical, ~1/3 less GPU
+const SCROLL_MANUAL_MS = 10000; // hold the auto drift after a manual scroll, so it doesn't yank the view back
 /* Total rounds. SoL never publishes a target round count for Swiss events, so this is
    operator-set: click the "Round n / N" label. Persisted per tournament URL so a
    previous tournament's count can't leak into a new one; ?rounds= / CONFIG is the
@@ -3826,6 +3827,42 @@ function start(data){
 function attachAutoScroll(el){
   if (!el) return;
   let pos = 0, dir = 1, pauseUntil = 0, last = null, inner = null, written = null;
+  let manualUntil = 0;
+
+  /* Manual scrolling. The rows are moved by a transform rather than scrollTop, so .sclip
+     is overflow:hidden and the wheel would do nothing at all — hence driving `pos` by hand
+     here instead of making the panel natively scrollable, which would give up the
+     GPU-composited path. A wheel notch also holds the automatic drift off for a while, so
+     the two can't fight over the same offset while someone is reading. */
+  const nudge = (cur, delta) => {
+    const max = cur.offsetHeight - cur.parentNode.clientHeight;
+    if (max <= 1) return false;
+    pos = Math.min(max, Math.max(0, pos + delta));
+    const next = Math.round(pos);
+    if (next !== written){ cur.style.transform = "translateY(" + (-next) + "px)"; written = next; }
+    inner = cur;
+    dir = 1;                                   // resume downward, wherever they left it
+    manualUntil = performance.now() + SCROLL_MANUAL_MS;
+    return true;
+  };
+
+  el.addEventListener("wheel", (e) => {
+    const cur = el.querySelector(".scroller");
+    if (cur && nudge(cur, e.deltaY)) e.preventDefault();
+  }, { passive: false });
+
+  // Touch drag, for venue screens that happen to be touchscreens.
+  let touchY = null;
+  el.addEventListener("touchstart", (e) => { touchY = e.touches[0].clientY; }, { passive: true });
+  el.addEventListener("touchmove", (e) => {
+    if (touchY == null) return;
+    const y = e.touches[0].clientY;
+    const cur = el.querySelector(".scroller");
+    if (cur && nudge(cur, touchY - y)) e.preventDefault();
+    touchY = y;
+  }, { passive: false });
+  el.addEventListener("touchend", () => { touchY = null; }, { passive: true });
+
   function frame(ts){
     requestAnimationFrame(frame);
     const cur = el.querySelector(".scroller");
@@ -3839,7 +3876,7 @@ function attachAutoScroll(el){
     const max = inner.offsetHeight - clip.clientHeight;
     if (max <= 1){ if (written !== 0){ inner.style.transform = "translateY(0)"; written = 0; } pos = 0; dir = 1; pauseUntil = 0; return; }
     if (pos > max) pos = max;
-    if (ts < pauseUntil) return;
+    if (ts < pauseUntil || ts < manualUntil) return;   // held off while someone is scrolling by hand
     pos += dir * SCROLL_SPEED * ZOOM * (dt / 1000);   // taller rows when zoomed in → same perceived speed
     if (pos >= max){ pos = max; dir = -1; pauseUntil = ts + SCROLL_PAUSE_MS; }
     else if (pos <= 0){ pos = 0; dir = 1; pauseUntil = ts + SCROLL_PAUSE_MS; }
