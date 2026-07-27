@@ -106,7 +106,9 @@ screen, the audience just sees the logo.
 
 The panel opens in **its own small window**, which you can drag onto a laptop screen and edit
 without the room reading a half-typed announcement off the projector. If the browser blocks the
-popup, the same panel falls back to an in-page dialog.
+popup, the same panel falls back to an in-page dialog:
+
+<p align="center"><a href="screenshots/05-settings.png" target="_blank" rel="noopener"><img src="screenshots/05-settings.png" width="380" alt="The settings panel over a live round"></a><br><sub><b>The settings panel</b> — every operator control in one place, here as the in-page dialog over a dimmed live round.</sub></p>
 
 | Setting | Effect |
 | --- | --- |

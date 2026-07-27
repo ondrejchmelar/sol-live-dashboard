@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 """Regenerate the README screenshots from mock data against the real dashboard.html.
 
-The four shots (pre-round player list, a live round, the prealarm warning, and a
-best-of-three final) are rendered from the mock scenarios below through the *actual*
-`dashboard.html` render path — so they stay truthful whenever the UI changes. Edit the
-scenarios here (player pool, scores, clock state, next-round / updated times) and re-run.
+The five shots (pre-round player list, a live round, the prealarm warning, a
+best-of-three final, and the settings panel) are rendered from the mock scenarios below
+through the *actual* `dashboard.html` render path — so they stay truthful whenever the UI
+changes. Edit the scenarios here (player pool, scores, clock state, next-round / updated
+times) and re-run.
 
 Usage:  python3 screenshots/generate.py
 Needs:  `google-chrome` on PATH (override with $CHROME) and Pillow (`pip install pillow`).
 
 How it works: each scenario replaces dashboard.html's poll bootstrap with `start(MOCK)`,
 injects `font-size:16px` for a denser 1080p view, screenshots headless at 1920x1080, then
-crops the ~87px blank strip headless leaves below the (smaller) layout viewport.
+crops the ~87px blank strip headless leaves below the (smaller) layout viewport. The
+settings shot stubs `window.open` so `openSettings()` takes the in-page overlay fallback
+(headless can't show the detached popup), then crops to the panel plus a strip of the
+dimmed dashboard around it.
 """
 import os, re, json, random, datetime, subprocess, tempfile
 from PIL import Image
@@ -77,15 +81,47 @@ def event(round_n):
             "totalRounds": 8, "location": "Prague", "club": "", "system": "Swiss"}
 
 
-def harness(data, next_manual=None, next_iso=None):
+def harness(data, next_manual=None, next_iso=None, extra_js=""):
     pre = ""
     if next_manual is not None:
         pre += "NEXT.manual=" + json.dumps(next_manual) + ";"
         if next_iso is not None:  # keep the manual override from being wiped when the clock ticks
             pre += ("NEXT.roundISO=" + json.dumps(next_iso) +
                     ";NEXT.endMs=new Date('" + next_iso + "').getTime()+54*60000;NEXT.savedMs=Date.now();")
-    js = pre + "\nconst MOCK=" + json.dumps(data) + ";\nstart(MOCK);\n"
-    return SRC.replace("</head>", HEAD_INJ + "</head>").replace(BOOT, js)
+    js = pre + "\nconst MOCK=" + json.dumps(data) + ";\nstart(MOCK);\n" + extra_js
+    # count=1: "</head>" also occurs inside openSettings' document.write string, and
+    # anything injected there — worst of all a probe's own "</script>" — corrupts it.
+    return SRC.replace("</head>", HEAD_INJ + "</head>", 1).replace(BOOT, js)
+
+
+# Generic badge standing in for a club emblem, so the settings shot shows the emblem
+# state an operator actually sees mid-tournament (clubs named, one resolved) instead of
+# the transient "Looking up the club emblem…".
+EMBLEM_SVG = ("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>"
+              "<circle cx='32' cy='32' r='30' fill='%23f7f4ec'/>"
+              "<rect x='14' y='14' width='36' height='36' rx='4' fill='%230b1e33'/>"
+              "<circle cx='32' cy='32' r='7' fill='%23f7f4ec'/><circle cx='19' cy='19' r='3' fill='%23f7f4ec'/>"
+              "<circle cx='45' cy='19' r='3' fill='%23f7f4ec'/><circle cx='19' cy='45' r='3' fill='%23f7f4ec'/>"
+              "<circle cx='45' cy='45' r='3' fill='%23f7f4ec'/></svg>")
+
+
+def settings_js(clk):
+    """Open the settings panel over the live-round backdrop, every field populated the
+    way a real tournament populates it: the next-round hint fed from the running clock,
+    both clubs resolved, and a message on the ticker (which also pre-fills the textarea)."""
+    return (
+        # Headless can't render the detached popup — force the in-page overlay fallback.
+        "window.open=()=>null;"
+        + "NEXT.endMs=new Date(" + json.dumps(clk["startedAtISO"]) + ").getTime()"
+        + "+" + str(clk["durationMin"]) + "*60000;NEXT.savedMs=Date.now();"
+        + "EMBLEM={url:CONFIG.targetUrl,tried:true,"
+        + "host:{src:" + json.dumps(EMBLEM_SVG) + ",title:'Czech Carrom Association'},"
+        + "owner:{src:" + json.dumps(EMBLEM_SVG) + ",title:'European Carrom Confederation'},"
+        + "hostName:'Czech Carrom Association',ownerName:'European Carrom Confederation'};"
+        + "applyLogo();"
+        + "setMessage('Please clear your boards promptly — lunch follows this round.');"
+        + "openSettings();"
+    )
 
 
 def run_chrome(args):
@@ -100,7 +136,7 @@ def inner_height(html):
     probe = "<script>addEventListener('load',()=>setTimeout(()=>document.title='IH'+innerHeight,400))</script>"
     with tempfile.TemporaryDirectory() as d:
         p = os.path.join(d, "probe.html")
-        open(p, "w", encoding="utf-8").write(html.replace("</head>", probe + "</head>"))
+        open(p, "w", encoding="utf-8").write(html.replace("</head>", probe + "</head>", 1))
         r = subprocess.run([CHROME, "--headless", "--disable-gpu", "--no-sandbox",
                             f"--window-size={W},{H}", "--force-device-scale-factor=1",
                             "--virtual-time-budget=1500", "--dump-dom", f"file://{p}"],
@@ -109,14 +145,40 @@ def inner_height(html):
     return int(m.group(1)) if m else H
 
 
-def shoot(name, html, crop_h):
+def panel_rect(html):
+    """Bounding box of the overlay-hosted settings panel, probed like inner_height."""
+    probe = ("<script>addEventListener('load',()=>setTimeout(()=>{"
+             "const r=document.querySelector('#settingsOverlay .sset').getBoundingClientRect();"
+             "document.title='PR'+JSON.stringify([r.left,r.top,r.right,r.bottom].map(Math.round))"
+             "},600))</script>")
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "probe.html")
+        open(p, "w", encoding="utf-8").write(html.replace("</head>", probe + "</head>", 1))
+        r = subprocess.run([CHROME, "--headless", "--disable-gpu", "--no-sandbox",
+                            f"--window-size={W},{H}", "--force-device-scale-factor=1",
+                            "--virtual-time-budget=2000", "--dump-dom", f"file://{p}"],
+                           capture_output=True, text=True)
+    m = re.search(r"PR\[(-?\d+),(-?\d+),(-?\d+),(-?\d+)\]", r.stdout)
+    return tuple(int(g) for g in m.groups()) if m else None
+
+
+PANEL_PAD = 56  # dimmed dashboard visible around the panel, so the overlay context reads
+
+
+def shoot(name, html, crop_h, box=None):
     with tempfile.TemporaryDirectory() as d:
         hp = os.path.join(d, "h.html")
         open(hp, "w", encoding="utf-8").write(html)
         out = os.path.join(HERE, name + ".png")
         run_chrome([f"--screenshot={out}", "--virtual-time-budget=2500", f"file://{hp}"])
     im = Image.open(out)
-    im.crop((0, 0, im.width, min(crop_h, im.height))).save(out)
+    if box:
+        left, top, right, bottom = box
+        im.crop((max(0, left - PANEL_PAD), max(0, top - PANEL_PAD),
+                 min(im.width, right + PANEL_PAD),
+                 min(crop_h, im.height, bottom + PANEL_PAD))).save(out)
+    else:
+        im.crop((0, 0, im.width, min(crop_h, im.height))).save(out)
     print("wrote", os.path.relpath(out, ROOT), "->", Image.open(out).size)
 
 
@@ -128,14 +190,14 @@ def build_shots():
     # falling under prealarmMin. Inventing a "prealarm" state here would hide the live
     # dot on every unfinished board, since that badge keys off state === "running".
     c_run, c_pre = clock("running", 24.6), clock("running", 1.6)
+    live = {"event": event(6), "clock": c_run, "matches": matches(30, 0.45), "standings": standings(PLAYERS),
+            "state": "running", "updatedISO": "2026-07-18T10:56:00Z"}
     return [
         # (filename, harness html, ...)
         ("01-players", harness(
             {"event": event(None), "clock": None, "matches": [], "standings": standings(PLAYERS, played=False),
              "state": "pre", "updatedISO": "2026-07-18T06:50:00Z"}, next_manual="9:00")),
-        ("02-round-live", harness(
-            {"event": event(6), "clock": c_run, "matches": matches(30, 0.45), "standings": standings(PLAYERS),
-             "state": "running", "updatedISO": "2026-07-18T10:56:00Z"}, next_manual="~13:30", next_iso=c_run["startedAtISO"])),
+        ("02-round-live", harness(live, next_manual="~13:30", next_iso=c_run["startedAtISO"])),
         ("03-round-prealarm", harness(
             {"event": event(6), "clock": c_pre, "matches": matches(30, 0.82), "standings": standings(PLAYERS),
              "state": "running", "updatedISO": "2026-07-18T11:18:00Z"}, next_manual="~13:30", next_iso=c_pre["startedAtISO"])),
@@ -150,6 +212,9 @@ def build_shots():
                                                 {"a": 25, "b": 3, "finished": True, "live": False, "winner": 1}],
                                       "wins": {"a": 2, "b": 1}, "decided": True, "winnerSide": "a"}]},
              "updatedISO": "2026-07-18T15:57:00Z"})),
+        # The operator's settings panel, over the same live round. The manual next-round
+        # field stays empty on purpose — that's its designed state (see the hint).
+        ("05-settings", harness(live, extra_js=settings_js(c_run))),
     ]
 
 
@@ -158,7 +223,12 @@ def main():
     crop_h = inner_height(shots[1][1])  # measure once from the live-round layout
     print("layout viewport height:", crop_h)
     for name, html in shots:
-        shoot(name, html, crop_h)
+        box = None
+        if name == "05-settings":
+            box = panel_rect(html)
+            if not box:
+                raise SystemExit("settings panel not found — the overlay didn't open")
+        shoot(name, html, crop_h, box=box)
 
 
 if __name__ == "__main__":
