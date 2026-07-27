@@ -24,7 +24,13 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 SRC = open(os.path.join(ROOT, "dashboard.html"), encoding="utf-8").read()
 BOOT = "poll();\nsetInterval(poll, Math.max(30, CONFIG.pollSeconds) * 1000);"
-HEAD_INJ = "<style>html{font-size:16px!important}</style>"
+# font-size: a denser 1080p view. Frozen animations: every blink (live dots, prealarm,
+# the footer badge) is a step-end loop, so a still lands on whatever phase the run
+# happened to reach and the PNGs churn on every regeneration. Pausing at delay 0 pins
+# them all to keyframe 0% — full opacity, which is the state a still should show.
+HEAD_INJ = ("<style>html{font-size:16px!important}"
+            "*,*::before,*::after{animation-delay:0s!important;animation-play-state:paused!important}"
+            "</style>")
 CHROME = os.environ.get("CHROME", "google-chrome")
 W, H = 1920, 1080
 random.seed(42)

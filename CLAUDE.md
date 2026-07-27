@@ -180,6 +180,13 @@ already scored (so "Round ended" holds until new pairings are drawn).
   rather than `scrollTop`. Together these took the dashboard from ~1 CPU core to a fraction of one on weak integrated
   GPUs. Smooth interpolation or per-frame scroll writes will bring the core back.
 - **No demo fallback:** with no live data show an empty board; on an Anubis challenge show "Reconnecting to SoL…".
+- **Footer connection badge** (`#connbadge`, `CONN_STATES`, driven only by `applyStatus`): green *Live* once data
+  renders, amber *Connecting* before the first poll and during an Anubis solve, orange *Offline* on a failed poll,
+  hidden entirely while the URL prompt is up. It was previously hardcoded green "LIVE" in the markup and never
+  updated, so it claimed a working SoL connection in every one of those states. `start()` — not `poll()` — sets the
+  `ok` state, because rendering real data *is* the live signal; that also keeps the mock-driven screenshots honest
+  without the harness having to fake a status. The badge is only rewritten when the state actually changes, and the
+  dot element is never replaced, or the blink would restart on every poll.
 
 ## Dev workflow / gotchas
 
@@ -193,8 +200,10 @@ already scored (so "Round ended" holds until new pairings are drawn).
   dashboard's appearance — layout, header/clock, standings, matches, or the finals panel — **re-run
   `python3 screenshots/generate.py`** and commit the updated PNGs. The mock scenarios (player pool, scores, clock
   states, next-round/updated times) live in that script; edit them there, not by hand-editing images.
-  The clock-bearing shots embed a wall-clock-derived time, so a re-run rewrites them even with no UI change —
-  `git checkout` the ones that only drifted, so the diff shows real changes.
+  The harness freezes CSS animations (`animation-play-state:paused` at delay 0) so every blink lands on keyframe 0%
+  instead of whatever phase the run reached — without it the PNGs churn on every regeneration. The two
+  running-clock shots (`02`, `03`) still drift, because their countdown ticks between page build and capture;
+  `git checkout` those when only the digits moved, so the diff shows real changes.
   Overlay shots (settings, URL prompt) are cropped to their panel via `PANEL_SEL` + `panel_rect`; the settings one
   stubs `window.open` so the panel takes its in-page fallback, since headless can't capture the detached popup.
   **Injections into the page must use `.replace(…, 1)`** — `</head>` also appears inside `openSettings`' own

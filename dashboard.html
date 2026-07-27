@@ -286,7 +286,19 @@ footer.app{
   background:#0a3f78;color:#cfe0f5;font-size:clamp(.72rem,1.3vw,1rem);font-weight:600;
 }
 footer.app .live{color:#fff;font-weight:800;text-transform:uppercase;letter-spacing:.08em}
-footer.app .live .statedot{background:var(--green);animation:blink 1.6s step-end infinite}
+/* Connection state, driven by applyStatus. The dot was permanently green, which claimed
+   a working SoL connection while the page was still waiting for its first poll, or had
+   just failed one. Blink stays step-end everywhere — see the performance note. */
+footer.app .live .statedot{background:currentColor;animation:blink 1.6s step-end infinite}
+footer.app .live.ok{color:#fff}
+footer.app .live.ok .statedot{background:var(--green)}
+footer.app .live.warn{color:var(--amber)}
+footer.app .live.warn .statedot{background:var(--amber);animation:blink .9s step-end infinite}
+/* Offline holds steady: a dead connection that keeps pulsing reads as activity. */
+footer.app .live.err{color:var(--orange)}
+footer.app .live.err .statedot{background:var(--orange);animation:none}
+/* Nothing configured to poll — the URL prompt is up, so there is no connection to report. */
+footer.app .live.off{display:none}
 footer.app .src{margin-left:auto;opacity:.75}
 
 /* Zoom control — centred in the footer, revealed only on hover so the corridor
@@ -525,7 +537,7 @@ body>.sset{width:auto;border-radius:0}
 </main>
 
 <footer class="app">
-  <span class="live"><span class="statedot"></span>Live</span>
+  <span class="live warn" id="connbadge"><span class="statedot"></span><span id="conntext">Connecting</span></span>
   <span id="updated"></span>
   <div class="zoomctl">
     <button type="button" class="zbtn" id="zoomOut" title="Zoom out (−)">−</button>
@@ -3670,7 +3682,6 @@ async function poll(){
     data.idtourney = idt;
     if (TOTAL_ROUNDS) data.event.totalRounds = TOTAL_ROUNDS;
     start(data);
-    applyStatus({ state: "ok", message: "" });
 
     // After the board is up: the emblem costs a fetch and must never delay the render.
     resolveEmblem(rank).catch((e) => console.warn("[emblem] resolve failed:", e));
@@ -3694,6 +3705,7 @@ const LABELS = {
   updated: "updated", finished: "Finished", inProgress: "In progress", bye: "Bye",
   pts: "Pts", bch: "Bch", net: "Net", page: "page", source: "source",
   afterRound: "after round",
+  connLive: "Live", connConnecting: "Connecting", connOffline: "Offline",
 };
 
 const SCROLL_SPEED = 28;      // px/sec vertical drift
@@ -3844,6 +3856,9 @@ function start(data){
     bar.style.display = "none";
     renderNextRound();     // keep the "next round ~" estimate up between timers
   }
+  // Rendering real data IS the live signal, so the renderer owns it rather than its
+  // caller — which also keeps the mock-driven screenshots honest for free.
+  applyStatus({ state: "ok", message: "" });
 }
 
 /* Auto-scroll a panel body: drift the .scroller down at SCROLL_SPEED, pause at the
@@ -4414,12 +4429,39 @@ function refreshFooter(){
   el.textContent = LABELS.updated + " " + hhmm(new Date(DATA.updatedISO));
 }
 
+/* Footer connection badge, keyed by the same status everything else in the footer uses.
+   "waiting" is the pre-first-poll default, so a page that never reaches SoL keeps saying
+   Connecting rather than Live. "unconfigured" hides it: with the URL prompt up there is
+   no tournament to be connected to, and an amber "connecting" would be equally untrue. */
+const CONN_STATES = {
+  ok:           { cls: "ok",   text: LABELS.connLive },
+  anubis:       { cls: "warn", text: LABELS.connConnecting },
+  waiting:      { cls: "warn", text: LABELS.connConnecting },
+  error:        { cls: "err",  text: LABELS.connOffline },
+  unconfigured: { cls: "off",  text: LABELS.connConnecting },
+};
+/* Seeded to match the markup, and only written when it actually changes: a poll lands
+   every minute, and rewriting the badge each time would restart the dot's blink — the
+   pulse would visibly hiccup on every poll. The dot element is never replaced for the
+   same reason, so its animation runs uninterrupted. */
+let connState = "waiting";
+
 function applyStatus(status){
+  const state = (status && status.state) || "waiting";
   const note = document.getElementById("dashstatus");
-  if (!note) return;
-  if (status && status.state === "anubis") note.textContent = "⚠ " + (status.message || "Anubis — reconnecting…");
-  else if (status && status.state === "error") note.textContent = "⚠ " + (status.message || "error");
-  else note.textContent = "";
+  if (note){
+    if (state === "anubis") note.textContent = "⚠ " + (status.message || "Anubis — reconnecting…");
+    else if (state === "error") note.textContent = "⚠ " + (status.message || "error");
+    else note.textContent = "";
+  }
+  const badge = document.getElementById("connbadge");
+  const text = document.getElementById("conntext");
+  if (badge && text && state !== connState){
+    const s = CONN_STATES[state] || CONN_STATES.waiting;
+    connState = state;
+    badge.className = "live " + s.cls;
+    text.textContent = s.text;
+  }
 }
 
 // Small helper to surface solve progress in the footer without blanking the board.
@@ -4450,7 +4492,7 @@ function showEmpty(status){
    ?url= set and every other query param kept, exactly as if it had been typed —
    which also makes the result bookmarkable. */
 function showUrlPrompt(){
-  showEmpty({});
+  showEmpty({ state: "unconfigured" });
   document.getElementById("eventName").textContent = "SoL Live Dashboard";
   const p = document.getElementById("urlPrompt");
   if (!p.classList.contains("on")){
