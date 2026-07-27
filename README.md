@@ -22,6 +22,15 @@ This README is about **getting it running for your own tournament**. For how the
 </tr>
 </table>
 
+## The dashboard
+
+**<https://ondrejchmelar.github.io/sol-live-dashboard/dashboard.html>** — the current version, published from this
+repo. This is the address to hand to the Chrome launch below; you don't have to download anything.
+
+⚠️ **Opening it in an ordinary browser tab will not work.** It will ask for your tournament URL as normal, and then
+sit on "Waiting for SoL…" forever, because a normal tab may not read SoL cross-origin. Copy the address into the
+launch command in [Step 3](#step-3--launch-it) instead — that's the one catch, explained next.
+
 ---
 
 ## The one catch: it needs a special Chrome launch
@@ -48,8 +57,10 @@ detected automatically, so the same file works for either.
 
 ## Step 2 — Get the dashboard file
 
-Download `dashboard.html` from this repo (the single file is the whole app). Save it anywhere, e.g.
-`~/sol/dashboard.html`.
+Either use the [hosted copy](#the-dashboard) as-is, or download `dashboard.html` from this repo (the single file is
+the whole app) and save it anywhere, e.g. `~/sol/dashboard.html`. Downloading gets you a copy that can't change under
+you mid-tournament; the hosted one is always current. Either way the launch in Step 3 is the same — swap the
+`file:///…` path for the `https://…` address if you use the hosted copy.
 
 ## Step 3 — Launch it
 
