@@ -17,17 +17,17 @@
      you must launch a THROWAWAY Chromium with web security disabled:
 
        Linux:
-         google-chrome --disable-web-security --user-data-dir="/tmp/sol-kiosk" \
-           --kiosk "file:///ABS/PATH/standalone.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
+         google-chrome --disable-web-security --user-data-dir="/tmp/sol-dash" \
+           "file:///ABS/PATH/standalone.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
 
        macOS:
          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
-           --disable-web-security --user-data-dir="/tmp/sol-kiosk" \
-           --kiosk "file:///ABS/PATH/standalone.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
+           --disable-web-security --user-data-dir="/tmp/sol-dash" \
+           "file:///ABS/PATH/standalone.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
 
        Windows:
-         chrome.exe --disable-web-security --user-data-dir="%TEMP%\sol-kiosk" ^
-           --kiosk "file:///C:/ABS/PATH/standalone.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
+         chrome.exe --disable-web-security --user-data-dir="%TEMP%\sol-dash" ^
+           "file:///C:/ABS/PATH/standalone.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
 
      NOTES:
        • --user-data-dir is REQUIRED: Chrome ignores --disable-web-security on your
@@ -99,7 +99,20 @@ header.app .sub{
   text-transform:uppercase;letter-spacing:.08em;margin-top:.15rem;
 }
 header.app .sub .dot{opacity:.55;margin:0 .45em}
-header.app .logo{cursor:pointer}
+
+/* The logo opens the settings panel. A gear badge fades in on hover so the control is
+   discoverable to whoever is standing at the machine, while an unattended corridor
+   screen (no pointer over it) shows nothing but the logo. The wrapper is what carries
+   the click, so it works for both the host <img> and the bundled <svg> fallback. */
+header.app .logowrap{position:relative;flex:0 0 auto;line-height:0;cursor:pointer}
+header.app .logowrap .gear{
+  position:absolute;right:-3px;bottom:-3px;
+  width:1.3em;height:1.3em;display:flex;align-items:center;justify-content:center;
+  font-size:clamp(11px,1.1vw,15px);line-height:1;border-radius:50%;
+  background:#0a3f78;color:#fff;border:1px solid rgba(255,255,255,.55);
+  opacity:0;transition:opacity .12s linear;pointer-events:none;
+}
+header.app .logowrap:hover .gear{opacity:1}
 
 /* ---------- Message bar (announcement to players; click the logo to edit) ---------- */
 #messageBar{
@@ -111,20 +124,8 @@ header.app .logo{cursor:pointer}
 }
 #messageBar.on{display:block}
 #messageBar::before{content:"📢";margin-right:.6em}
-#msgEditor,#nextEditor,#roundsEditor{position:fixed;inset:0;background:rgba(11,30,51,.55);display:none;align-items:center;justify-content:center;z-index:50}
-#msgEditor.on,#nextEditor.on,#roundsEditor.on{display:flex}
-#msgEditor .box,#nextEditor .box,#roundsEditor .box{
-  background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.35);
-  padding:1.2rem 1.4rem;width:min(90vw,34rem);display:flex;flex-direction:column;gap:.8rem;
-}
-#msgEditor h3,#nextEditor h3,#roundsEditor h3{margin:0;font-size:1.1rem;color:var(--blue-ink)}
-#msgEditor textarea{font:inherit;font-size:1rem;padding:.6rem;border:1px solid var(--line);border-radius:8px;resize:vertical;min-height:6rem}
-#msgEditor .row,#nextEditor .row,#roundsEditor .row{display:flex;justify-content:flex-end;gap:.6rem}
-#msgEditor button,#nextEditor button,#roundsEditor button{font:inherit;font-weight:700;padding:.45rem 1.1rem;border-radius:8px;border:1px solid var(--line);background:#f2f5f9;color:var(--ink);cursor:pointer}
-#msgEditor button.primary,#nextEditor button.primary,#roundsEditor button.primary{background:var(--blue);border-color:var(--blue);color:#fff}
-#nextEditor label,#roundsEditor label{display:flex;align-items:center;justify-content:space-between;gap:.8rem;font-weight:600}
-#nextEditor input,#roundsEditor input{font:inherit;font-size:1rem;padding:.35rem .5rem;border:1px solid var(--line);border-radius:8px}
-#nextEditor input[type=number],#roundsEditor input[type=number]{width:5.5rem}
+/* The clock's next-round block and the "Round n / N" subtitle stay clickable, but as
+   shortcuts into the one settings panel rather than dialogs of their own. */
 header.app .aux{cursor:pointer}
 header.app .sub{cursor:pointer}
 
@@ -430,10 +431,51 @@ table.rank td.name{font-weight:400}
 .final-match .fgame .fgs .sep{margin:0 .3rem;opacity:.4}
 .final-match .fgame.awin .fgs .a,.final-match .fgame.bwin .fgs .b{color:var(--green)}
 </style>
+
+<!-- Settings panel styles, kept in their own block because this block's text is copied
+     verbatim into the detached settings window, which has no other stylesheet. Every
+     rule is therefore scoped to .sset and carries its own custom properties and font
+     stack, and sizes in em off .sset's own 16px base — the panel must NOT ride the
+     dashboard's zoomed rem base, or zooming the screen would resize the operator's
+     controls along with it. -->
+<style id="setCss">
+#settingsOverlay{position:fixed;inset:0;background:rgba(11,30,51,.55);display:none;align-items:center;justify-content:center;z-index:60}
+#settingsOverlay.on{display:flex}
+.sset{
+  --s-line:#dfe6ef;--s-ink:#14233a;--s-muted:#5b6b80;--s-blue:#0d7ff2;--s-blue-ink:#275a88;
+  font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  color:var(--s-ink);background:#fff;border-radius:12px;
+  padding:1.2em 1.4em;width:min(92vw,32em);display:flex;flex-direction:column;gap:.85em;
+}
+#settingsOverlay .sset{box-shadow:0 12px 40px rgba(0,0,0,.35)}
+/* In the detached window the panel IS the page, so it fills whatever width the window
+   has instead of holding a fixed 32em that would overflow into a scrollbar. */
+body>.sset{width:auto;border-radius:0}
+.sset h3{margin:0;font-size:1.15em;color:var(--s-blue-ink)}
+.sset .hint{margin:-.5em 0 0;font-size:.8em;font-weight:400;color:var(--s-muted)}
+.sset label{display:flex;align-items:center;justify-content:space-between;gap:.8em;font-weight:600}
+.sset label.col{flex-direction:column;align-items:stretch;gap:.35em}
+.sset textarea{font:inherit;padding:.6em;border:1px solid var(--s-line);border-radius:8px;resize:vertical;min-height:4.5em}
+.sset input[type=time],.sset input[type=number]{font:inherit;padding:.35em .5em;border:1px solid var(--s-line);border-radius:8px}
+.sset input[type=number]{width:5.5em}
+.sset input[type=checkbox]{width:1.15em;height:1.15em}
+.sset .zrow{display:flex;align-items:center;gap:.5em}
+.sset .zrow output{min-width:3.6em;text-align:center;font-variant-numeric:tabular-nums}
+.sset .zrow button{width:2em;height:2em;padding:0;font-weight:800}
+.sset hr{border:0;border-top:1px solid var(--s-line);margin:.1em 0;width:100%}
+.sset .row{display:flex;align-items:center;gap:.6em;margin-top:.2em}
+.sset .row .note{margin-right:auto;font-size:.85em;font-weight:700;color:#00bd39;opacity:0;transition:opacity .12s linear}
+.sset .row .note.on{opacity:1}
+.sset button{font:inherit;font-weight:700;padding:.45em 1.1em;border-radius:8px;border:1px solid var(--s-line);background:#f2f5f9;color:var(--s-ink);cursor:pointer}
+.sset button:hover{background:#e7ecf3}
+.sset button.primary{background:var(--s-blue);border-color:var(--s-blue);color:#fff}
+.sset button.primary:hover{background:#0b6fd6}
+</style>
 </head>
 <body>
 <header class="app">
   <div class="brand">
+    <div class="logowrap" id="logoBtn" title="Dashboard settings">
     <img class="logo" id="logoImg" alt="" style="display:none">
     <svg class="logo" id="logoFallback" viewBox="0 0 64 64" role="img" aria-label="Carrom">
       <rect x="3" y="3" width="58" height="58" rx="9" fill="#ffffff" opacity=".12"/>
@@ -443,6 +485,8 @@ table.rank td.name{font-weight:400}
       <circle cx="16" cy="16" r="3" fill="#ffffff"/><circle cx="48" cy="16" r="3" fill="#ffffff"/>
       <circle cx="16" cy="48" r="3" fill="#ffffff"/><circle cx="48" cy="48" r="3" fill="#ffffff"/>
     </svg>
+    <span class="gear" aria-hidden="true">⚙</span>
+    </div>
     <div class="title">
       <span class="event" id="eventName">SoL Live</span>
       <span class="sub" id="eventSub"></span>
@@ -479,39 +523,40 @@ table.rank td.name{font-weight:400}
   <span class="src" id="dashstatus"></span>
 </footer>
 
-<div id="msgEditor">
-  <div class="box">
-    <h3>Message to players</h3>
-    <textarea id="msgInput" rows="4" placeholder="Shown below the header — leave empty to hide the bar"></textarea>
+<!-- Settings form. Lives in a <template> because the same markup is cloned into either
+     the detached settings window or the #settingsOverlay fallback below. -->
+<template id="settingsTpl">
+  <div class="sset">
+    <h3>Dashboard settings</h3>
+    <label class="col">Message to players
+      <textarea id="setMsg" rows="3" placeholder="Shown below the header — leave empty to hide the bar"></textarea>
+    </label>
+    <hr>
+    <label>Next round start <input type="time" id="setNext"></label>
+    <p class="hint" id="setNextHint"></p>
+    <label>Break between rounds (min) <input type="number" id="setBreak" min="0" max="180" step="5"></label>
+    <label>Total rounds <input type="number" id="setRounds" min="1" max="99" step="1"></label>
+    <p class="hint">Empty hides the “/ N” part of “Round n / N”.</p>
+    <hr>
+    <label>Screen zoom
+      <span class="zrow">
+        <button type="button" id="setZoomOut" title="Zoom out">−</button>
+        <output id="setZoomPct">100%</output>
+        <button type="button" id="setZoomIn" title="Zoom in">+</button>
+      </span>
+    </label>
+    <label>Show QR code <input type="checkbox" id="setQr"></label>
     <div class="row">
-      <button type="button" id="msgClear">Clear</button>
-      <button type="button" id="msgSave" class="primary">Show</button>
+      <span class="note" id="setNote">Applied ✓</span>
+      <button type="button" id="setClose">Close</button>
+      <button type="button" id="setApply" class="primary">Apply</button>
     </div>
   </div>
-</div>
+</template>
 
-<div id="nextEditor">
-  <div class="box">
-    <h3>Next round</h3>
-    <label>Expected start <input type="time" id="nextInput"></label>
-    <label>Break between rounds (min) <input type="number" id="breakInput" min="0" max="180" step="5"></label>
-    <div class="row">
-      <button type="button" id="nextAuto">Auto time</button>
-      <button type="button" id="nextSave" class="primary">Set</button>
-    </div>
-  </div>
-</div>
+<!-- Fallback host for the settings form when the detached window is blocked. -->
+<div id="settingsOverlay"></div>
 
-<div id="roundsEditor">
-  <div class="box">
-    <h3>Total rounds</h3>
-    <label>Number of rounds <input type="number" id="roundsInput" min="1" max="99" step="1"></label>
-    <div class="row">
-      <button type="button" id="roundsClear">Hide total</button>
-      <button type="button" id="roundsSave" class="primary">Set</button>
-    </div>
-  </div>
-</div>
 <div class="qrbox" id="qrBox" title="Click to hide">
   <div class="qrlabel">Results</div>
   <div class="qrimg" id="qrImg"></div>
@@ -3526,6 +3571,7 @@ function setZoom(z){
     ZOOM = next;
     try { localStorage.setItem(ZOOM_KEY, String(ZOOM)); } catch (e) {}
     applyZoom();
+    syncZoomReadout();   // the settings panel's own readout, when it's open
     // Column counts are width-driven, so a zoom change has to re-flow both panels.
     if (everRendered && DATA){ renderMatches(); renderStandings(); layoutPanels(); }
   }
@@ -3555,38 +3601,6 @@ function renderNextRound(){
   else if (NEXT.endMs) inner = "<b>~" + hhmm(round5(new Date(NEXT.endMs + BREAK_MIN * 60000))) + "</b>";
   else if (DATA.event.name) inner = "<b>—</b>";
   aux.innerHTML = inner ? '<span class="nrlabel">' + LABELS.nextRound + "</span>" + inner : "";
-}
-
-function openNextEditor(){
-  const auto = NEXT.endMs ? hhmm(round5(new Date(NEXT.endMs + BREAK_MIN * 60000))) : "";
-  document.getElementById("nextInput").value = NEXT.manual || auto;
-  document.getElementById("breakInput").value = BREAK_MIN;
-  document.getElementById("nextEditor").classList.add("on");
-}
-function closeNextEditor(){ document.getElementById("nextEditor").classList.remove("on"); }
-function applyNextEditor(clearManual){
-  const brk = Number(document.getElementById("breakInput").value);
-  if (Number.isFinite(brk) && brk >= 0){
-    BREAK_MIN = brk;
-    try { localStorage.setItem(BREAK_KEY, String(brk)); } catch (e) {}
-  }
-  NEXT.manual = clearManual ? null : (document.getElementById("nextInput").value || null);
-  saveNext();
-  renderNextRound();
-  closeNextEditor();
-}
-
-function openRoundsEditor(){
-  document.getElementById("roundsInput").value = TOTAL_ROUNDS || "";
-  document.getElementById("roundsEditor").classList.add("on");
-}
-function closeRoundsEditor(){ document.getElementById("roundsEditor").classList.remove("on"); }
-function applyRoundsEditor(clear){
-  const n = Math.round(Number(document.getElementById("roundsInput").value));
-  TOTAL_ROUNDS = (!clear && Number.isFinite(n) && n >= 1) ? n : null;
-  try { localStorage.setItem(ROUNDS_KEY, JSON.stringify({ url: CONFIG.targetUrl, n: TOTAL_ROUNDS })); } catch (e) {}
-  if (DATA){ DATA.event.totalRounds = TOTAL_ROUNDS; document.getElementById("eventSub").textContent = topStatus(DATA); }
-  closeRoundsEditor();
 }
 
 let DATA = null;
@@ -3620,6 +3634,7 @@ function renderQR(){
 document.getElementById("qrBox").addEventListener("click", () => {
   qrHidden = true;
   renderQR();
+  syncQRCheckbox();     // keep the settings panel's toggle honest
 });
 renderQR();
 
@@ -3723,7 +3738,7 @@ function renderStatic(){
   document.title = (e.name || "SoL Live") + " — Corridor Dashboard";
 }
 
-/* ---------- Message bar (operator announcement; click the logo to edit) ---------- */
+/* ---------- Message bar (operator announcement; edited in the settings panel) ---------- */
 const MSG_KEY = "solDash.message";
 let MSG = "";
 try { MSG = localStorage.getItem(MSG_KEY) || ""; } catch (e) {}
@@ -3739,12 +3754,149 @@ function setMessage(v){
   try { localStorage.setItem(MSG_KEY, v); } catch (e) {}
   renderMessage();
 }
-function openMsgEditor(){
-  document.getElementById("msgInput").value = MSG;
-  document.getElementById("msgEditor").classList.add("on");
-  document.getElementById("msgInput").focus();
+/* ---------- Settings panel (click the logo / its hover gear) ----------
+   Opened in a DETACHED window where the browser allows one, so the operator can drag it
+   onto a laptop screen and edit without the audience reading half-typed announcements off
+   the projector. Falls back to an in-page overlay when the popup is blocked.
+
+   Both hosts are fed from <template id="settingsTpl">, so there is one copy of the markup;
+   every DOM lookup goes through the host document, never the global `document`.
+   This is the single editor for every operator setting: the logo, the Space key, the clock's
+   next-round block and the "Round n / N" subtitle all open it. */
+let setWin = null;   // the detached window, while it is open
+
+// The document currently hosting the settings form, or null when it's closed.
+function settingsHost(){
+  if (setWin && !setWin.closed && setWin.document) return setWin.document;
+  const ov = document.getElementById("settingsOverlay");
+  return ov && ov.classList.contains("on") ? document : null;
 }
-function closeMsgEditor(){ document.getElementById("msgEditor").classList.remove("on"); }
+
+function mountSettings(doc, root){
+  root.appendChild(doc.importNode(document.getElementById("settingsTpl").content, true));
+  const $ = (id) => doc.getElementById(id);
+  $("setMsg").value = MSG;
+  /* Deliberately NOT pre-filled with the automatic estimate: this field is a manual
+     override, so pre-filling it would freeze the current estimate the moment anyone
+     pressed Apply after editing some unrelated field. Empty = stay automatic; the
+     estimate is shown in the hint instead, where it can't be committed by accident. */
+  $("setNext").value = NEXT.manual || "";
+  const auto = NEXT.endMs ? hhmm(round5(new Date(NEXT.endMs + BREAK_MIN * 60000))) : null;
+  $("setNextHint").textContent = auto
+    ? "Empty = automatic estimate, currently ~" + auto + " (round end + break)."
+    : "Empty = automatic estimate (round end + break).";
+  $("setBreak").value = BREAK_MIN;
+  $("setRounds").value = TOTAL_ROUNDS || "";
+  $("setQr").checked = document.getElementById("qrBox").classList.contains("show");
+  // Zoom and the QR toggle are direct manipulations — they apply on the spot, so the
+  // operator can watch the big screen while nudging them. Text fields wait for Apply.
+  $("setZoomOut").addEventListener("click", () => setZoom(ZOOM - ZOOM_STEP));
+  $("setZoomIn").addEventListener("click", () => setZoom(ZOOM + ZOOM_STEP));
+  $("setQr").addEventListener("change", (e) => setQRVisible(e.target.checked));
+  $("setApply").addEventListener("click", applySettings);
+  $("setClose").addEventListener("click", closeSettings);
+  syncZoomReadout();
+  $("setMsg").focus();
+}
+
+function syncZoomReadout(){
+  const doc = settingsHost();
+  const out = doc && doc.getElementById("setZoomPct");
+  if (out) out.textContent = Math.round(ZOOM * 100) + "%";
+}
+
+// The QR auto-hides from round 3 on, so re-ticking the box after that has to force it
+// back on — the same thing &qr=1 does — or renderQR would just hide it again.
+function setQRVisible(on){
+  qrHidden = !on;
+  CONFIG.qrForceOn = !!on;
+  CONFIG.qrForceOff = !on;
+  renderQR();
+}
+function syncQRCheckbox(){
+  const doc = settingsHost();
+  const box = doc && doc.getElementById("setQr");
+  if (box) box.checked = document.getElementById("qrBox").classList.contains("show");
+}
+
+function applySettings(){
+  const doc = settingsHost();
+  if (!doc) return;
+  const $ = (id) => doc.getElementById(id);
+  setMessage($("setMsg").value);
+
+  const brk = Number($("setBreak").value);
+  if (Number.isFinite(brk) && brk >= 0){
+    BREAK_MIN = brk;
+    try { localStorage.setItem(BREAK_KEY, String(brk)); } catch (e) {}
+  }
+  // Empty = fall back to the automatic estimate, the same as the editor's "Auto time".
+  NEXT.manual = $("setNext").value || null;
+  saveNext();
+  renderNextRound();
+
+  const n = Math.round(Number($("setRounds").value));
+  TOTAL_ROUNDS = (Number.isFinite(n) && n >= 1) ? n : null;
+  try { localStorage.setItem(ROUNDS_KEY, JSON.stringify({ url: CONFIG.targetUrl, n: TOTAL_ROUNDS })); } catch (e) {}
+  if (DATA){ DATA.event.totalRounds = TOTAL_ROUNDS; document.getElementById("eventSub").textContent = topStatus(DATA); }
+
+  // Confirm in the panel itself — on a detached window the operator may not be looking
+  // at the big screen, and an unmarked Apply gives no sign it landed.
+  const note = $("setNote");
+  if (note){
+    note.classList.add("on");
+    clearTimeout(applySettings._t);
+    applySettings._t = setTimeout(() => note.classList.remove("on"), 1600);
+  }
+}
+
+/* Grow the detached window until the form fits, so it never opens with a scrollbar.
+   The window's outer size includes the browser's own chrome, whose height varies by
+   platform and theme, so measure the shortfall against inner* rather than guessing a
+   constant. Runs after a tick to let the popup lay out first, and never exceeds the
+   screen. */
+function fitSettingsWindow(w){
+  w.setTimeout(() => {
+    if (w.closed) return;
+    const b = w.document.body;
+    const needW = b.scrollWidth - w.innerWidth;
+    const needH = b.scrollHeight - w.innerHeight;
+    if (needW <= 0 && needH <= 0) return;
+    w.resizeTo(Math.min(w.screen.availWidth,  w.outerWidth  + Math.max(0, needW)),
+               Math.min(w.screen.availHeight, w.outerHeight + Math.max(0, needH)));
+  }, 0);
+}
+
+function openSettings(){
+  if (setWin && !setWin.closed){ setWin.focus(); return; }
+  let w = null;
+  try { w = window.open("", "solSettings", "popup=yes,width=560,height=700"); } catch (e) {}
+  if (w && w.document){
+    setWin = w;
+    w.document.open();
+    w.document.write('<!doctype html><html><head><meta charset="utf-8">' +
+      "<title>Dashboard settings</title><style>html,body{margin:0}body{padding:14px;background:#eef2f7}" +
+      document.getElementById("setCss").textContent + "</style></head><body></body></html>");
+    w.document.close();
+    mountSettings(w.document, w.document.body);
+    w.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSettings(); });
+    fitSettingsWindow(w);
+    w.focus();
+  } else {
+    const ov = document.getElementById("settingsOverlay");
+    ov.innerHTML = "";
+    ov.classList.add("on");
+    mountSettings(document, ov);
+  }
+}
+
+function closeSettings(){
+  if (setWin && !setWin.closed) setWin.close();
+  setWin = null;
+  const ov = document.getElementById("settingsOverlay");
+  ov.classList.remove("on");
+  ov.innerHTML = "";
+}
 
 /* Content-driven column sizing, tuned against the longest expected names at the 1.35rem
    font cap: singles "WEERAWARNAKULA Haritha" = 368px, doubles "BANKOVIC Aleksandar/
@@ -4063,28 +4215,30 @@ attachAutoScroll(document.getElementById("matchesBody"));
 attachAutoScroll(document.getElementById("standingsBody"));
 
 renderMessage();
-document.querySelector("header.app .logo").addEventListener("click", openMsgEditor);
-document.getElementById("msgSave").addEventListener("click", () => { setMessage(document.getElementById("msgInput").value); closeMsgEditor(); });
-document.getElementById("msgClear").addEventListener("click", () => { setMessage(""); closeMsgEditor(); });
-document.getElementById("msgEditor").addEventListener("click", e => { if (e.target.id === "msgEditor") closeMsgEditor(); });
-document.getElementById("clockAux").addEventListener("click", openNextEditor);
-document.getElementById("nextSave").addEventListener("click", () => applyNextEditor(false));
-document.getElementById("nextAuto").addEventListener("click", () => applyNextEditor(true));
-document.getElementById("nextEditor").addEventListener("click", e => { if (e.target.id === "nextEditor") closeNextEditor(); });
-document.getElementById("eventSub").addEventListener("click", openRoundsEditor);
-document.getElementById("roundsSave").addEventListener("click", () => applyRoundsEditor(false));
-document.getElementById("roundsClear").addEventListener("click", () => applyRoundsEditor(true));
-document.getElementById("roundsEditor").addEventListener("click", e => { if (e.target.id === "roundsEditor") closeRoundsEditor(); });
-addEventListener("keydown", e => { if (e.key === "Escape"){ closeMsgEditor(); closeNextEditor(); closeRoundsEditor(); } });
+document.getElementById("logoBtn").addEventListener("click", openSettings);
+document.getElementById("settingsOverlay").addEventListener("click", e => { if (e.target.id === "settingsOverlay") closeSettings(); });
+addEventListener("beforeunload", () => { if (setWin && !setWin.closed) setWin.close(); });
+// The clock's next-round block and the "Round n / N" subtitle stay clickable, now as
+// shortcuts straight into the settings panel that holds those fields.
+document.getElementById("clockAux").addEventListener("click", openSettings);
+document.getElementById("eventSub").addEventListener("click", openSettings);
 document.getElementById("zoomOut").addEventListener("click", () => setZoom(ZOOM - ZOOM_STEP));
 document.getElementById("zoomIn").addEventListener("click", () => setZoom(ZOOM + ZOOM_STEP));
 document.getElementById("zoomPct").addEventListener("click", () => setZoom(1));
-// Bare +/-/0 mirror the footer buttons; Ctrl/Cmd combos are left to the browser's own zoom.
+/* Keyboard: Space opens the settings panel, Escape closes it, and bare +/-/0 mirror the
+   footer zoom buttons. Ctrl/Cmd combos are left alone so the browser's own zoom still
+   works, and keys are ignored while a form field has focus so they can be typed. */
 addEventListener("keydown", e => {
+  if (e.key === "Escape"){ closeSettings(); return; }
   if (e.ctrlKey || e.metaKey || e.altKey) return;
-  const t = e.target;
-  if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
-  if (e.key === "+" || e.key === "=") setZoom(ZOOM + ZOOM_STEP);
+  const tag = e.target && e.target.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+  if (e.key === " " || e.key === "Spacebar"){
+    if (tag === "BUTTON") return;          // Space is that button's own activation key
+    e.preventDefault();                    // ...and not a page scroll
+    openSettings();
+  }
+  else if (e.key === "+" || e.key === "=") setZoom(ZOOM + ZOOM_STEP);
   else if (e.key === "-" || e.key === "_") setZoom(ZOOM - ZOOM_STEP);
   else if (e.key === "0") setZoom(1);
 });

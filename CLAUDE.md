@@ -36,8 +36,8 @@ sandbox seccomp is broken — run Bash with `dangerouslyDisableSandbox: true`.
 Launch the standalone (Linux; macOS/Windows equivalents in the file's header comment):
 
 ```
-google-chrome --disable-web-security --user-data-dir="/tmp/sol-kiosk" \
-  --kiosk "file:///ABS/PATH/standalone.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
+google-chrome --disable-web-security --user-data-dir="/tmp/sol-dash" \
+  "file:///ABS/PATH/standalone.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
 ```
 
 - `--user-data-dir` is **required** — Chrome ignores `--disable-web-security` on your normal profile.
@@ -113,6 +113,20 @@ already scored (so "Round ended" holds until new pairings are drawn).
   All three are tuned so the longest expected names fit unclipped at 4K — singles "WEERAWARNAKULA Haritha" (368px at
   the 1.35rem font cap), doubles "BANKOVIC Aleksandar/PAVLOVIC Aleksandar" (596px); longer names may ellipsize.
   Fonts rem-based (`html{font-size:20px}`) so browser zoom scales everything.
+- **Settings panel** (standalone only): the **single** editor for every operator setting — message, next-round time,
+  break, total rounds, zoom, QR toggle. Four ways in, all `openSettings()`: the logo (`#logoBtn`, gear badge on
+  hover), the Space key, the clock's next-round block, and the "Round n / N" subtitle. There are deliberately **no
+  per-setting dialogs any more**; don't reintroduce one. It opens in a **detached `window.open`** so the operator can
+  drag it off the projector and type unseen, falling back to `#settingsOverlay` when the popup is blocked — so every
+  lookup goes through the *host* document (`settingsHost()`), never the global `document`, and the form lives in
+  `<template id="settingsTpl">` with its CSS in `<style id="setCss">`, whose text is copied into the popup verbatim.
+  That CSS is scoped to `.sset`, carries its own custom properties, and sizes in `em` off a 16px base **on purpose**:
+  the panel must not ride the zoomed rem base, or screen zoom would resize the operator's own controls. `body>.sset`
+  fills the popup and `fitSettingsWindow()` grows the window to the form's `scrollWidth/Height`, measured against
+  `inner*` because browser chrome varies — that's what keeps a scrollbar out of it.
+  **"Next round start" is deliberately not pre-filled** with the auto estimate — pre-filling would silently freeze
+  it into a manual override the first time anyone pressed Apply after editing an unrelated field; the estimate goes
+  in the hint text instead.
 - **Zoom** (standalone only; the extension dashboard doesn't have it): browser zoom's steps are too coarse for a
   corridor screen and can't be driven from JS, so the footer carries a hover-only `− 100% +` control (`.zoomctl`,
   absolutely centred; `setZoom`/`applyZoom`) that scales the **rem base** in 5% steps, 50–200%, persisted in

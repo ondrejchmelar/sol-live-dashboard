@@ -58,25 +58,24 @@ Replace the path and the `url=` with yours. The `--user-data-dir` is **required*
 
 **Linux**
 ```
-google-chrome --disable-web-security --user-data-dir="/tmp/sol-kiosk" \
-  --kiosk "file:///home/you/sol/standalone.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
+google-chrome --disable-web-security --user-data-dir="/tmp/sol-dash" \
+  "file:///home/you/sol/standalone.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
 ```
 
 **macOS**
 ```
 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
-  --disable-web-security --user-data-dir="/tmp/sol-kiosk" \
-  --kiosk "file:///Users/you/sol/standalone.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
+  --disable-web-security --user-data-dir="/tmp/sol-dash" \
+  "file:///Users/you/sol/standalone.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
 ```
 
 **Windows** (one line)
 ```
-chrome.exe --disable-web-security --user-data-dir="%TEMP%\sol-kiosk" --kiosk "file:///C:/Users/you/sol/standalone.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
+chrome.exe --disable-web-security --user-data-dir="%TEMP%\sol-dash" "file:///C:/Users/you/sol/standalone.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
 ```
 
-It opens fullscreen ("Waiting for SoL…"), solves Anubis in the page, and within a few seconds shows your tournament.
-`--kiosk` gives fullscreen with no toolbars; drop it while testing if you want the address bar. Exit with `Alt+F4`
-(or `Cmd+Q` on macOS).
+It opens ("Waiting for SoL…"), solves Anubis in the page, and within a few seconds shows your tournament. Press
+<kbd>F11</kbd> for fullscreen once it's up. Exit with `Alt+F4` (or `Cmd+Q` on macOS).
 
 ---
 
@@ -90,6 +89,34 @@ Append these to the `?url=…` query string (`&` between them):
   clock never appears. You can read it from a countdown URL, e.g. `…?idtourney=1201`.
 
 Example: `standalone.html?url=…/lit/tourney/<GUID>&poll=30&rounds=9`
+
+---
+
+## Settings panel (click the logo)
+
+Everything an operator adjusts during the day lives in one panel: **click the logo** in the
+top-left. Hovering it shows a small gear so the control is findable; with no pointer on the
+screen, the audience just sees the logo.
+
+The panel opens in **its own small window**, which you can drag onto a laptop screen and edit
+without the room reading a half-typed announcement off the projector. If the browser blocks the
+popup, the same panel falls back to an in-page dialog.
+
+| Setting | Effect |
+| --- | --- |
+| **Message to players** | Announcement bar under the header. Empty hides the bar. |
+| **Next round start** | Manual override for the header's "next round" time. **Leave it empty to keep the automatic estimate** (round end + break) — it is deliberately not pre-filled, so changing some other setting can't freeze the estimate by accident. |
+| **Break between rounds** | Feeds that automatic estimate. |
+| **Total rounds** | The "/ N" in "Round n / N". Swiss events don't publish this. Empty hides it. |
+| **Screen zoom** | Same 5 % steps as the footer control below. |
+| **Show QR code** | Hides the QR now, or forces it back after its round-3 auto-hide. |
+
+Text fields apply on **Apply**; zoom and the QR toggle take effect immediately, so you can nudge
+them while watching the big screen.
+
+Three ways in, all opening the same panel: the **logo**, the <kbd>Space</kbd> key, or clicking the
+part of the header you want to change — the **next-round time** or the **"Round n / N"** subtitle.
+<kbd>Esc</kbd> closes it.
 
 ---
 
@@ -116,13 +143,13 @@ Chrome (the page still fetches SoL cross-origin).
 ### A. Local file (simplest)
 Keep `standalone.html` on the display machine and launch it as in Step 3. Nothing else to set up.
 
-### B. Bake your URL into the file (nice for kiosks)
+### B. Bake your URL into the file
 So you don't have to pass `?url=` every time, copy the file and hard-code your tournament once:
 
 1. Copy `standalone.html` to e.g. `mytourney.html`.
 2. Open it in a text editor, find `CONFIG` near the top, and set `targetUrl` to your `…/lit/tourney/<GUID>` URL.
 3. Launch it without a query string:
-   `google-chrome --disable-web-security --user-data-dir="/tmp/sol-kiosk" --kiosk "file:///path/mytourney.html"`
+   `google-chrome --disable-web-security --user-data-dir="/tmp/sol-dash" "file:///path/mytourney.html"`
 
 (The shipped `standalone-singles.html` / `standalone-doubles.html` are exactly this — copies with a specific
 tournament baked in.)
@@ -133,8 +160,8 @@ Upload `standalone.html` (or your baked copy) to any static host — e.g. `https
 instead of a `file://` path:
 
 ```
-google-chrome --disable-web-security --user-data-dir="/tmp/sol-kiosk" \
-  --kiosk "https://yoursite/dashboard/mytourney.html"
+google-chrome --disable-web-security --user-data-dir="/tmp/sol-dash" \
+  "https://yoursite/dashboard/mytourney.html"
 ```
 
 Hosting is convenient for updating the file centrally and for several screens, but each screen still runs its own
@@ -142,10 +169,11 @@ throwaway Chrome with the flags — visiting the URL in a normal browser will no
 
 ---
 
-## Running it unattended (kiosk tips)
+## Running it unattended
 
 - **Auto-start on boot:** put the launch command in the OS autostart (a `.desktop` autostart entry or systemd user
   service on Linux, a Startup shortcut on Windows). A fresh `--user-data-dir` each boot is fine.
+- **Fullscreen:** press <kbd>F11</kbd> once the dashboard is up.
 - **Keep the screen awake:** disable sleep/screensaver on the display machine.
 - **Weak/laptop GPUs:** the dashboard is tuned to stay light on CPU (discrete-step pulsing, GPU-composited scrolling),
   so it runs comfortably unattended for hours.
@@ -176,7 +204,9 @@ people nearby can pull up the official page on their own phone. It's only useful
 Before that, you can also dismiss it early:
 
 - Click the QR box on the dashboard itself.
-- Toggle **Hide QR on dashboard** in the popup.
+- Untick **Show QR code** in the settings panel (`standalone.html`), which can also bring it
+  back after the round-3 auto-hide.
+- Toggle **Hide QR on dashboard** in the extension popup.
 
 Both write the same `showQR` setting (`chrome.storage.local`), so either one sticks.
 In `standalone.html` (no `chrome.storage`), it's session-only: click to hide, or relaunch
