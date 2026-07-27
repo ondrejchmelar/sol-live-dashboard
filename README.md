@@ -180,13 +180,15 @@ throwaway Chrome with the flags — visiting the URL in a normal browser will no
 ### Example: the screens this was built for
 
 One copy of the file, the tournament passed in the query string — no separate file per event.
-These links are relative, so they resolve next to `dashboard.html` wherever you put it:
+These run the copy published from this repo by GitHub Pages:
 
-- <a href="./dashboard.html?url=https://sol5.metapensiero.it/lit/tourney/a61d130076e211f1b82f901b0edac7fa" target="_blank" rel="noopener">28th Eurocup 2026 in Prague — Singles</a>
-- <a href="./dashboard.html?url=https://sol5.metapensiero.it/lit/tourney/5de8f12a76e311f1b059901b0edac7fa" target="_blank" rel="noopener">28th Eurocup 2026 in Prague — Doubles</a>
+- <a href="https://ondrejchmelar.github.io/sol-live-dashboard/dashboard.html?url=https://sol5.metapensiero.it/lit/tourney/a61d130076e211f1b82f901b0edac7fa" target="_blank" rel="noopener">28th Eurocup 2026 in Prague — Singles</a>
+- <a href="https://ondrejchmelar.github.io/sol-live-dashboard/dashboard.html?url=https://sol5.metapensiero.it/lit/tourney/5de8f12a76e311f1b059901b0edac7fa" target="_blank" rel="noopener">28th Eurocup 2026 in Prague — Doubles</a>
 
-Those are URLs to hand to the **Step 3** Chrome launch. Opening them in an ordinary browser tab
-shows the layout but never any data — the same CORS wall as everywhere else on this page.
+⚠️ **These are URLs to hand to the Step 3 Chrome launch, not links to browse.** Clicked from an
+ordinary tab they show the dashboard's layout but sit on "Waiting for SoL…" forever, because a
+normal browser may not read SoL cross-origin — the same CORS wall as everywhere else on this page.
+Copy the address and launch it with the flags instead.
 
 ---
 
