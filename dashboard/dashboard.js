@@ -341,7 +341,7 @@ function renderMatchRow(m){
 // How many standings columns fit — driven by viewport WIDTH (not player count). Wide columns so
 // full names (and doubles "Name1 / Name2" pairs) stay readable: ~2 columns at 1920, ~4 at 4K.
 // Column width per event type (see STAND_MIN_COL): ~7 singles / ~5 doubles columns at 4K.
-function standingsCols(n){ return Math.max(1, Math.min(Math.floor(window.innerWidth/STAND_MIN_COL[eventType()]), Math.ceil(n/4))); }
+function standingsCols(n){ return Math.max(1, Math.min(Math.floor(window.innerWidth/STAND_MIN_COL[eventType()]), Math.floor(n/10))); }
 
 function renderStandings(){
   const list=DATA.standings||[];
