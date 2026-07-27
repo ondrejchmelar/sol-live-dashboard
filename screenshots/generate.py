@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Regenerate the README screenshots from mock data against the real standalone.html.
+"""Regenerate the README screenshots from mock data against the real dashboard.html.
 
 The four shots (pre-round player list, a live round, the prealarm warning, and a
 best-of-three final) are rendered from the mock scenarios below through the *actual*
-`standalone.html` render path — so they stay truthful whenever the UI changes. Edit the
+`dashboard.html` render path — so they stay truthful whenever the UI changes. Edit the
 scenarios here (player pool, scores, clock state, next-round / updated times) and re-run.
 
 Usage:  python3 screenshots/generate.py
 Needs:  `google-chrome` on PATH (override with $CHROME) and Pillow (`pip install pillow`).
 
-How it works: each scenario replaces standalone.html's poll bootstrap with `start(MOCK)`,
+How it works: each scenario replaces dashboard.html's poll bootstrap with `start(MOCK)`,
 injects `font-size:16px` for a denser 1080p view, screenshots headless at 1920x1080, then
 crops the ~87px blank strip headless leaves below the (smaller) layout viewport.
 """
@@ -18,7 +18,7 @@ from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-SRC = open(os.path.join(ROOT, "standalone.html"), encoding="utf-8").read()
+SRC = open(os.path.join(ROOT, "dashboard.html"), encoding="utf-8").read()
 BOOT = "poll();\nsetInterval(poll, Math.max(30, CONFIG.pollSeconds) * 1000);"
 HEAD_INJ = "<style>html{font-size:16px!important}</style>"
 CHROME = os.environ.get("CHROME", "google-chrome")

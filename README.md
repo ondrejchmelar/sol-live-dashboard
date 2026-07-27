@@ -9,16 +9,16 @@ This README is about **getting it running for your own tournament**. For how the
 
 ## Screenshots
 
-<sub>Click any image for the full-size view.</sub>
+<sub>Click any image for the full-size view (opens in a new tab).</sub>
 
 <table>
 <tr>
-<td width="50%"><a href="screenshots/01-players.png"><img src="screenshots/01-players.png" alt="Player list before the first round"></a><br><sub><b>Before the first round</b> — the registered players, until the first pairings are drawn.</sub></td>
-<td width="50%"><a href="screenshots/02-round-live.png"><img src="screenshots/02-round-live.png" alt="A round in progress"></a><br><sub><b>Round in progress</b> — live boards with scores, the round clock, and standings.</sub></td>
+<td width="50%"><a href="screenshots/01-players.png" target="_blank" rel="noopener"><img src="screenshots/01-players.png" alt="Player list before the first round"></a><br><sub><b>Before the first round</b> — the registered players, until the first pairings are drawn.</sub></td>
+<td width="50%"><a href="screenshots/02-round-live.png" target="_blank" rel="noopener"><img src="screenshots/02-round-live.png" alt="A round in progress"></a><br><sub><b>Round in progress</b> — live boards with scores, the round clock, and standings.</sub></td>
 </tr>
 <tr>
-<td width="50%"><a href="screenshots/03-round-prealarm.png"><img src="screenshots/03-round-prealarm.png" alt="Prealarm — no more new boards"></a><br><sub><b>Prealarm</b> — the clock turns amber: no more new boards, finish the ones on the table.</sub></td>
-<td width="50%"><a href="screenshots/04-final.png"><img src="screenshots/04-final.png" alt="Best-of-three final"></a><br><sub><b>Final</b> — a best-of-three shown as one panel: the series score and every game.</sub></td>
+<td width="50%"><a href="screenshots/03-round-prealarm.png" target="_blank" rel="noopener"><img src="screenshots/03-round-prealarm.png" alt="Prealarm — no more new boards"></a><br><sub><b>Prealarm</b> — the clock turns amber: no more new boards, finish the ones on the table.</sub></td>
+<td width="50%"><a href="screenshots/04-final.png" target="_blank" rel="noopener"><img src="screenshots/04-final.png" alt="Best-of-three final"></a><br><sub><b>Final</b> — a best-of-three shown as one panel: the series score and every game.</sub></td>
 </tr>
 </table>
 
@@ -48,8 +48,8 @@ detected automatically, so the same file works for either.
 
 ## Step 2 — Get the dashboard file
 
-Download `standalone.html` from this repo (the single file is the whole app). Save it anywhere, e.g.
-`~/sol/standalone.html`.
+Download `dashboard.html` from this repo (the single file is the whole app). Save it anywhere, e.g.
+`~/sol/dashboard.html`.
 
 ## Step 3 — Launch it
 
@@ -59,19 +59,19 @@ Replace the path and the `url=` with yours. The `--user-data-dir` is **required*
 **Linux**
 ```
 google-chrome --disable-web-security --user-data-dir="/tmp/sol-dash" \
-  "file:///home/you/sol/standalone.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
+  "file:///home/you/sol/dashboard.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
 ```
 
 **macOS**
 ```
 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
   --disable-web-security --user-data-dir="/tmp/sol-dash" \
-  "file:///Users/you/sol/standalone.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
+  "file:///Users/you/sol/dashboard.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
 ```
 
 **Windows** (one line)
 ```
-chrome.exe --disable-web-security --user-data-dir="%TEMP%\sol-dash" "file:///C:/Users/you/sol/standalone.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
+chrome.exe --disable-web-security --user-data-dir="%TEMP%\sol-dash" "file:///C:/Users/you/sol/dashboard.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
 ```
 
 It opens ("Waiting for SoL…"), solves Anubis in the page, and within a few seconds shows your tournament. Press
@@ -88,7 +88,7 @@ Append these to the `?url=…` query string (`&` between them):
 - `idt=<idtourney>` — the integer timer id. Normally auto-detected while the round clock runs; only set this if the
   clock never appears. You can read it from a countdown URL, e.g. `…?idtourney=1201`.
 
-Example: `standalone.html?url=…/lit/tourney/<GUID>&poll=30&rounds=9`
+Example: `dashboard.html?url=…/lit/tourney/<GUID>&poll=30&rounds=9`
 
 ---
 
@@ -152,21 +152,20 @@ All three end with the **Step 3 launch** — hosting only changes *where the fil
 Chrome (the page still fetches SoL cross-origin).
 
 ### A. Local file (simplest)
-Keep `standalone.html` on the display machine and launch it as in Step 3. Nothing else to set up.
+Keep `dashboard.html` on the display machine and launch it as in Step 3. Nothing else to set up.
 
 ### B. Bake your URL into the file
 So you don't have to pass `?url=` every time, copy the file and hard-code your tournament once:
 
-1. Copy `standalone.html` to e.g. `mytourney.html`.
+1. Copy `dashboard.html` to e.g. `mytourney.html`.
 2. Open it in a text editor, find `CONFIG` near the top, and set `targetUrl` to your `…/lit/tourney/<GUID>` URL.
 3. Launch it without a query string:
    `google-chrome --disable-web-security --user-data-dir="/tmp/sol-dash" "file:///path/mytourney.html"`
 
-(The shipped `standalone-singles.html` / `standalone-doubles.html` are exactly this — copies with a specific
-tournament baked in.)
+Only worth it if you launch the same tournament over and over — otherwise just pass `?url=`.
 
 ### C. Host on a web server
-Upload `standalone.html` (or your baked copy) to any static host — e.g. `https://yoursite/dashboard/mytourney.html`
+Upload `dashboard.html` (or your baked copy) to any static host — e.g. `https://yoursite/dashboard/mytourney.html`
 — by FTP or however you publish that site. Then on the display machine launch Chrome pointing at the **hosted URL**
 instead of a `file://` path:
 
@@ -177,6 +176,17 @@ google-chrome --disable-web-security --user-data-dir="/tmp/sol-dash" \
 
 Hosting is convenient for updating the file centrally and for several screens, but each screen still runs its own
 throwaway Chrome with the flags — visiting the URL in a normal browser will not work (CORS).
+
+### Example: the screens this was built for
+
+One copy of the file, the tournament passed in the query string — no separate file per event.
+These links are relative, so they resolve next to `dashboard.html` wherever you put it:
+
+- <a href="dashboard.html?url=https://sol5.metapensiero.it/lit/tourney/a61d130076e211f1b82f901b0edac7fa" target="_blank" rel="noopener">28th Eurocup 2026 in Prague — Singles</a>
+- <a href="dashboard.html?url=https://sol5.metapensiero.it/lit/tourney/5de8f12a76e311f1b059901b0edac7fa" target="_blank" rel="noopener">28th Eurocup 2026 in Prague — Doubles</a>
+
+Those are URLs to hand to the **Step 3** Chrome launch. Opening them in an ordinary browser tab
+shows the layout but never any data — the same CORS wall as everywhere else on this page.
 
 ---
 
@@ -192,21 +202,6 @@ throwaway Chrome with the flags — visiting the URL in a normal browser will no
 
 ---
 
-## If the dashboard can't get past Anubis
-
-The in-page Anubis solver works today, but Anubis is third-party anti-bot software and an update could change its
-puzzle. If the dashboard gets stuck on "Reconnecting to SoL…", use the **Chrome extension** in this repo as a
-fallback: it runs Anubis's own code in a real browser tab, so it can't break on Anubis logic changes.
-
-1. `chrome://extensions` → enable **Developer mode** → **Load unpacked** → select this repo folder.
-2. Extension **Options** → set your `…/lit/tourney/<GUID>` URL.
-3. Open that SoL URL once in a normal tab so the browser solves Anubis.
-4. Extension popup → **Start polling** → **Open dashboard**.
-
-Same dashboard, same data — just a different way through the gate.
-
----
-
 ## QR code to the live SoL page
 
 A small QR code floats in the bottom-right corner, linking to the configured SoL URL so
@@ -215,21 +210,18 @@ people nearby can pull up the official page on their own phone. It's only useful
 Before that, you can also dismiss it early:
 
 - Click the QR box on the dashboard itself.
-- Untick **Show QR code** in the settings panel (`standalone.html`), which can also bring it
-  back after the round-3 auto-hide.
-- Toggle **Hide QR on dashboard** in the extension popup.
+- Untick **Show QR code** in the settings panel, which can also bring it back after the
+  round-3 auto-hide.
 
-Both write the same `showQR` setting (`chrome.storage.local`), so either one sticks.
-In `standalone.html` (no `chrome.storage`), it's session-only: click to hide, or relaunch
-with `&qr=0` to force it off entirely, or `&qr=1` to force it on past round 3.
-QR rendering uses a vendored copy of
-[qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) (MIT) — `src/qrcode.js`
-for the extension, inlined in `standalone.html` to keep that file dependency-free.
+Either way it lasts the session only. To settle it before launch, relaunch with `&qr=0` to
+force it off entirely, or `&qr=1` to force it on past round 3. QR rendering uses a vendored
+copy of [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) (MIT), inlined
+so the file stays dependency-free.
 
 ## Host association logo
 
 The header's top-left icon shows the **hosting club's emblem from SoL, automatically** —
-no configuration. `standalone.html` reads the tournament's **"Hosted by"** club and picks up
+no configuration. The dashboard reads the tournament's **"Hosted by"** club and picks up
 that club's emblem, once per tournament.
 
 Worth knowing *why* it's the "Hosted by" club: SoL records two clubs per tournament. **"Club"**
@@ -253,21 +245,17 @@ whatever image a club uploaded — emblems come in different formats (`.bmp` and
 occur) and arbitrary aspect ratios — so if one looks wrong blown up on a 4K header, switch it
 off. The choice is remembered.
 
-Also:
-
-- **`&logo=<image URL>`** in the launch URL wins over everything — use it for a sponsor or a
-  local-club logo that isn't in SoL.
-- **Extension:** Options → **Branding** → pick an image (stored locally as a data URL, under
-  ~500 KB recommended). **Remove** reverts to the default icon. The extension does **not**
-  auto-detect the emblem — that's `standalone.html` only.
-
-If an image is unset or fails to load, the default board icon is shown.
+To override it entirely — a sponsor, or a local-club logo that isn't in SoL — pass
+**`&logo=<image URL>`** in the launch URL; it wins over everything. If an image is unset or
+fails to load, the default board icon is shown.
 
 ---
 
 ## Notes & limits
 
-- **One field per file.** Singles and doubles are separate SoL tournaments; run one dashboard per tournament URL.
+- **Anubis.** The gate is solved in the page, and that works today — but Anubis is third-party anti-bot software, so
+  an update to its puzzle could in principle break the solver. The symptom would be the dashboard sitting on
+  "Reconnecting to SoL…" forever.
 - **Pre-round timer.** While a round is being *prepared*, SoL exposes no way to know how much break time remains, so
   the header just says "Preparing the …round" without a countdown. A live clock appears once the round starts.
 - **Firefox is not supported** — it has no `--disable-web-security` equivalent.

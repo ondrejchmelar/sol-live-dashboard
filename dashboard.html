@@ -3,31 +3,31 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SoL Live — Corridor Dashboard (standalone)</title>
+<title>SoL Live — Corridor Dashboard</title>
 <!-- ============================================================================
-     SoL Live — SINGLE-FILE corridorr dashboard with an in-browser Anubis solver.
-     No Chrome extension, no Node server. Everything (PoW solver + SoL scraper +
+     SoL Live — SINGLE-FILE corridor dashboard with an in-browser Anubis solver.
+     No browser extension, no Node server. Everything (PoW solver + SoL scraper +
      dashboard) lives in this one file.
 
      ── WHY IT NEEDS A SPECIAL LAUNCH ──────────────────────────────────────────
      SoL (sol5.metapensiero.it) serves plain HTML with NO CORS headers, so a
      normal browser page may not READ cross-origin responses — it can't even see
-     the Anubis challenge to solve it. The extension only worked because its
-     host_permissions bypass CORS. A plain .html file has no such privilege, so
-     you must launch a THROWAWAY Chromium with web security disabled:
+     the Anubis challenge to solve it. A plain .html file has no privilege that
+     gets around that, so you must launch a THROWAWAY Chromium with web security
+     disabled:
 
        Linux:
          google-chrome --disable-web-security --user-data-dir="/tmp/sol-dash" \
-           "file:///ABS/PATH/standalone.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
+           "file:///ABS/PATH/dashboard.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
 
        macOS:
          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
            --disable-web-security --user-data-dir="/tmp/sol-dash" \
-           "file:///ABS/PATH/standalone.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
+           "file:///ABS/PATH/dashboard.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
 
        Windows:
          chrome.exe --disable-web-security --user-data-dir="%TEMP%\sol-dash" ^
-           "file:///C:/ABS/PATH/standalone.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
+           "file:///C:/ABS/PATH/dashboard.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
 
      NOTES:
        • --user-data-dir is REQUIRED: Chrome ignores --disable-web-security on your
@@ -575,8 +575,7 @@ body>.sset{width:auto;border-radius:0}
 </div>
 
 <!-- Vendored QR encoder (MIT, Kazuhiko Arase) — inlined so this file stays a
-     single self-contained page with no CDN/network dependency. Kept in sync
-     with src/qrcode.js used by the extension build. -->
+     single self-contained page with no CDN/network dependency. -->
 <script>
 //---------------------------------------------------------------------
 //
@@ -3059,7 +3058,6 @@ async function solveAnubis(interstitialHtml, targetUrl){
 
 /* ============================================================================
    2) FETCH — credentialed, no-store; heuristically detect the Anubis gate.
-   (Ported from src/fetcher.js.)
    ============================================================================ */
 const ANUBIS_MARKERS = [/anubis/i, /making sure you[’'`]?re not a bot/i, /proof[- ]of[- ]work/i, /not a bot/i];
 
@@ -3098,7 +3096,7 @@ async function fetchWithSolve(url){
 }
 
 /* ============================================================================
-   3) PARSERS — ported verbatim from src/parser.js (browser DOMParser).
+   3) PARSERS — SoL's lit HTML via the browser's DOMParser.
    ============================================================================ */
 function parseTourney(html){
   const doc = new DOMParser().parseFromString(html, "text/html");
@@ -3439,7 +3437,7 @@ function buildFinals(rank, gameTurns){
 }
 
 /* ============================================================================
-   5) buildCorridor — ported verbatim from src/adapt.js.
+   5) buildCorridor — the parsed pieces into the single corridor data shape.
    ============================================================================ */
 function buildCorridor(rank, matches, clock){
   const headers = (rank.headers || []).map((h) => String(h).toLowerCase().replace(/[^a-z0-9]/g, ""));
@@ -3495,8 +3493,8 @@ function numFrom(cells, i){
 }
 
 /* ============================================================================
-   6) POLL LOOP — the same 5-step flow as background.js, but everything runs
-   in this page (no offscreen, no chrome.storage).
+   6) POLL LOOP — fetch the lit page (solving Anubis if the gate is up), read the
+   current turn, the boards and the countdown, then adapt + render. All in-page.
    ============================================================================ */
 let learnedId = null; // { url, id } — cached per target URL, survives between rounds
 let polling = false;

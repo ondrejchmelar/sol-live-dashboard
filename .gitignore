@@ -2,5 +2,4 @@
 node_modules/
 .DS_Store
 .idea/
-README.preview.html
 __pycache__/

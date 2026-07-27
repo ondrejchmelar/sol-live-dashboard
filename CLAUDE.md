@@ -8,24 +8,23 @@ clock, standings + live boards. It polls SoL public "lit" pages, clears the **An
 - Repo: `git@github.com:ondrejchmelar/sol-live-dashboard.git` (owner ondrejchmelar, chmelar.o@gmail.com).
 - Target: one large 4K screen, ~10 h unattended.
 
-## Two implementations — standalone is primary
+## One file — `dashboard.html`
 
-1. **`standalone.html` — the primary deliverable.** One self-contained file: an in-browser Anubis proof-of-work
-   solver + SoL scraper + the dashboard, no extension and no server. It runs from `file://` or a plain web host, but
-   because SoL sends no CORS headers a normal tab can't read its responses — so it must be launched in a throwaway
-   Chrome with web security disabled (see "Running"). Verified end-to-end (solver cleared Anubis, full field parsed).
-   - `standalone-singles.html` / `standalone-doubles.html` — byte-identical copies of `standalone.html` with a
-     tournament URL baked into `CONFIG.targetUrl` (singles `a61d1300…`, doubles `5de8f12a…`). Regenerate with
-     `cp standalone.html standalone-<x>.html` then re-bake the doubles guid. Deployed to `carrom.cz/dashboard/` by FTP.
+**`dashboard.html` is the whole deliverable**, and the only shipped file. One self-contained page: an in-browser
+Anubis proof-of-work solver + SoL scraper + the dashboard, no extension and no server. It runs from `file://` or a
+plain web host, but because SoL sends no CORS headers a normal tab can't read its responses — so it must be launched
+in a throwaway Chrome with web security disabled (see "Running"). Verified end-to-end against live SoL (solver
+cleared Anubis, full field parsed).
 
-2. **The Chrome extension — the fallback** for when the standalone's in-page PoW solver can't clear Anubis (e.g. an
-   Anubis version bump changes the algorithm). The extension runs Anubis's *own* JS in a real hidden tab, so it can't
-   break on Anubis logic changes. Same parsers, same dashboard. Files: `manifest.json`, `background.js` (service
-   worker poll loop), `offscreen.*` (DOMParser host), `src/*`, `dashboard/*`, `popup/*`, `options/*`.
+Configuration is by query string, so there are **no per-tournament copies of the file** — the two Eurocup 2026
+screens are just links to one hosted copy with `?url=` set (singles `a61d1300…`, doubles `5de8f12a…`; both listed in
+the README). Deployed to `carrom.cz/dashboard/` by FTP.
 
-The `src/*` modules (`parser.js`, `adapt.js`, `countdown.js`, `fetcher.js`, `storage.js`, `logger.js`) are the
-extension's source of truth; **`standalone.html` inlines ported copies of the same logic.** Keep them in sync when
-you touch parsing/adapting behaviour.
+A Chrome extension used to live here as a fallback for Anubis changes (it ran Anubis's own JS in a hidden tab), with
+the parsers in `src/*` as its source of truth and `dashboard.html` inlining ported copies. It was removed in July
+2026 — the in-page solver has been reliable, and two copies of the parsers were a maintenance tax. The inlined code
+is now the only copy; there is nothing left to keep in sync. Git history (before `main` at the cleanup commit) has
+the extension, `src/*` and the old `gh-pages/` publish target if any of it is ever wanted back.
 
 ## Running / building
 
@@ -39,11 +38,11 @@ leading zeros — 4 today, ~15 ms in Python — then GET `pass-challenge` to ban
 `--disable-web-security --user-data-dir=…` also runs the real dashboard end to end against live SoL, which is the
 strongest available test.
 
-Launch the standalone (Linux; macOS/Windows equivalents in the file's header comment):
+Launch it (Linux; macOS/Windows equivalents in the file's header comment):
 
 ```
 google-chrome --disable-web-security --user-data-dir="/tmp/sol-dash" \
-  "file:///ABS/PATH/standalone.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
+  "file:///ABS/PATH/dashboard.html?url=https://sol5.metapensiero.it/lit/tourney/<GUID>"
 ```
 
 - `--user-data-dir` is **required** — Chrome ignores `--disable-web-security` on your normal profile.
@@ -99,10 +98,9 @@ the `pre_countdown` *link* on the tourney page only to **label** the state ("Pre
 - Clearance is **origin-wide** (one solve clears lit + turn + countdown). A challenge page has no `<table>`; detect via
   `/anubis|not a bot|proof[- ]of[- ]work/i` + absence of `<table>`.
 - PoW: find `nonce` such that `sha256hex(randomData + nonce)` has `difficulty` leading-zero hex chars; submit to
-  `/.within.website/x/cmd/anubis/api/pass-challenge?…` to get the auth cookie. The standalone does this in-page
-  (`solvePoW`); the extension instead runs Anubis's own JS in a hidden tab.
+  `/.within.website/x/cmd/anubis/api/pass-challenge?…` to get the auth cookie. Done in-page by `solvePoW`.
 
-## Corridor data shape (single source of truth — `buildCorridor` in src/adapt.js)
+## Corridor data shape (single source of truth — `buildCorridor`)
 
 ```js
 {
@@ -129,7 +127,7 @@ already scored (so "Round ended" holds until new pairings are drawn).
   All three are tuned so the longest expected names fit unclipped at 4K — singles "WEERAWARNAKULA Haritha" (368px at
   the 1.35rem font cap), doubles "BANKOVIC Aleksandar/PAVLOVIC Aleksandar" (596px); longer names may ellipsize.
   Fonts rem-based (`html{font-size:20px}`) so browser zoom scales everything.
-- **Header emblem** (standalone only): `resolveEmblem()` resolves **both** clubs — `EMBLEM.host` (the "Hosted by"
+- **Header emblem:** `resolveEmblem()` resolves **both** clubs — `EMBLEM.host` (the "Hosted by"
   organiser) and `EMBLEM.owner` (the championship club, free from the tourney page's own `#emblem`, so still just
   **one** fetch, for the host). Fires after the first render and must never block or delay it. Cached per tournament
   URL: successes persisted, a miss remembered for the session only so a transient failure doesn't disable it
@@ -141,7 +139,7 @@ already scored (so "Round ended" holds until new pairings are drawn).
   **The cache load shape-checks (`"host" in e || "owner" in e`), not just the URL** — an entry written by the earlier
   single-emblem build has `{src,title,tried:true}`, and matching on URL alone made `resolveEmblem` skip forever and
   strand the header on the board icon. Any future change to the cached shape needs the same guard.
-- **Settings panel** (standalone only): the **single** editor for every operator setting — message, next-round time,
+- **Settings panel:** the **single** editor for every operator setting — message, next-round time,
   break, total rounds, zoom, QR toggle, emblem toggle. Four ways in, all `openSettings()`: the logo (`#logoBtn`, gear badge on
   hover), the Space key, the clock's next-round block, and the "Round n / N" subtitle. There are deliberately **no
   per-setting dialogs any more**; don't reintroduce one. It opens in a **detached `window.open`** so the operator can
@@ -155,7 +153,7 @@ already scored (so "Round ended" holds until new pairings are drawn).
   **"Next round start" is deliberately not pre-filled** with the auto estimate — pre-filling would silently freeze
   it into a manual override the first time anyone pressed Apply after editing an unrelated field; the estimate goes
   in the hint text instead.
-- **Zoom** (standalone only; the extension dashboard doesn't have it): browser zoom's steps are too coarse for a
+- **Zoom:** browser zoom's steps are too coarse for a
   corridor screen and can't be driven from JS, so the footer carries a hover-only `− 100% +` control (`.zoomctl`,
   absolutely centred; `setZoom`/`applyZoom`) that scales the **rem base** in 5% steps, 50–200%, persisted in
   `solDash.zoom`. Because the px width thresholds are *not* rem, `matchColumns`, `standingsCols` and the
@@ -179,13 +177,12 @@ already scored (so "Round ended" holds until new pairings are drawn).
 
 ## Dev workflow / gotchas
 
-- Validate JS with `node --check`. `standalone.html` and `dashboard/dashboard.html` are large (inline CSS + a base64
-  logo) — edit specific ranges, don't Read them whole.
+- Validate JS with `node --check`. `dashboard.html` is large (inline CSS + a base64 logo) — edit specific ranges,
+  don't Read it whole.
 - To verify rendering without the live site: build a harness that inlines a mock data object and calls `start(mock)`
   in place of the boot block, then screenshot with headless Chrome (`--headless=new --screenshot`, or `--dump-dom`
   reading `document.title` for computed-style probes).
-- After editing `standalone.html`, regenerate the two distributable copies and re-bake the doubles guid.
-- **README screenshots** (`screenshots/*.png`) are generated from mock data against the real `standalone.html` by
+- **README screenshots** (`screenshots/*.png`) are generated from mock data against the real `dashboard.html` by
   `screenshots/generate.py` (needs `google-chrome` + Pillow), so they stay truthful. Whenever a change alters the
   dashboard's appearance — layout, header/clock, standings, matches, or the finals panel — **re-run
   `python3 screenshots/generate.py`** and commit the updated PNGs. The mock scenarios (player pool, scores, clock
@@ -197,5 +194,5 @@ already scored (so "Round ended" holds until new pairings are drawn).
 - ~~`final`/`prized` unverified~~ — **done**: verified against the finished 28th Eurocup Singles (see the ranking
   table notes). The decided best-of-three final and the prized ranking both render correctly from live bytes.
 - Pre-round shows a label only; a live pre-round countdown is impossible without a server anchor from SoL.
-- `gh-pages/` is an old, simple `data.json` dashboard, not the corridor design — only relevant if publish is used.
-- The standalone's in-page Anubis solver is the weak point if Anubis changes; the extension is the fallback then.
+- The in-page Anubis solver is the single point of failure if Anubis changes its puzzle — there is no fallback in the
+  repo any more (see the extension note at the top). Symptom: stuck on "Reconnecting to SoL…".
