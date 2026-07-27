@@ -123,7 +123,11 @@ def shoot(name, html, crop_h):
 def build_shots():
     A, B = ["Dubois Pierre"], ["Vanderlan Ayesh Nilan"]
     rest = [p for p in PLAYERS if p not in ("Dubois Pierre", "Vanderlan Ayesh Nilan")]
-    c_run, c_pre = clock("running", 24.6), clock("prealarm", 1.6)
+    # Prealarm is not a state of its own: the clock is still "running" and the corridor
+    # state is still "running" — the amber header is derived from the remaining seconds
+    # falling under prealarmMin. Inventing a "prealarm" state here would hide the live
+    # dot on every unfinished board, since that badge keys off state === "running".
+    c_run, c_pre = clock("running", 24.6), clock("running", 1.6)
     return [
         # (filename, harness html, ...)
         ("01-players", harness(
@@ -134,7 +138,7 @@ def build_shots():
              "state": "running", "updatedISO": "2026-07-18T10:56:00Z"}, next_manual="~13:30", next_iso=c_run["startedAtISO"])),
         ("03-round-prealarm", harness(
             {"event": event(6), "clock": c_pre, "matches": matches(30, 0.82), "standings": standings(PLAYERS),
-             "state": "prealarm", "updatedISO": "2026-07-18T11:18:00Z"}, next_manual="~13:30", next_iso=c_pre["startedAtISO"])),
+             "state": "running", "updatedISO": "2026-07-18T11:18:00Z"}, next_manual="~13:30", next_iso=c_pre["startedAtISO"])),
         ("04-final", harness(
             {"event": event(16), "clock": None,
              "matches": [{"board": 1, "side1": A, "side2": B, "score1": 25, "score2": 3, "finished": True, "winner": 1, "phantom": False}],

@@ -81,14 +81,20 @@ It opens ("Waiting for SoL…"), solves Anubis in the page, and within a few sec
 
 ## Options
 
-Append these to the `?url=…` query string (`&` between them):
+Append these to the `?url=…` query string (`&` between them). That's the complete list — the dashboard reads no
+other parameters.
 
-- `poll=<seconds>` — how often to refresh (default `60`, minimum `30`).
+- `url=<lit URL>` — the tournament from Step 1. The only one you normally need.
+- `poll=<seconds>` — how often to refresh (default `60`, minimum `30` — lower values are clamped).
 - `rounds=<N>` — total rounds, shown as "Round n / N" (Swiss events don't expose this; default `8`).
 - `idt=<idtourney>` — the integer timer id. Normally auto-detected while the round clock runs; only set this if the
   clock never appears. You can read it from a countdown URL, e.g. `…?idtourney=1201`.
+- `qr=0` / `qr=1` — force the QR code off entirely, or on past its round-3 auto-hide. Omit for the default
+  behaviour. See [QR code](#qr-code-to-the-live-sol-page).
+- `logo=<image URL>` — a header logo of your own, overriding the club emblem SoL supplies. See
+  [Host association logo](#host-association-logo).
 
-Example: `dashboard.html?url=…/lit/tourney/<GUID>&poll=30&rounds=9`
+Example: `dashboard.html?url=…/lit/tourney/<GUID>&poll=30&rounds=9&qr=0`
 
 ---
 
