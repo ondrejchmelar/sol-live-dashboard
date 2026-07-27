@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Regenerate the README screenshots from mock data against the real dashboard.html.
 
-The five shots (pre-round player list, a live round, the prealarm warning, a
-best-of-three final, and the settings panel) are rendered from the mock scenarios below
-through the *actual* `dashboard.html` render path — so they stay truthful whenever the UI
-changes. Edit the scenarios here (player pool, scores, clock state, next-round / updated
-times) and re-run.
+The six shots (pre-round player list, a live round, the prealarm warning, a best-of-three
+final, the settings panel, and the startup URL prompt) are rendered from the mock
+scenarios below through the *actual* `dashboard.html` render path — so they stay truthful
+whenever the UI changes. Edit the scenarios here (player pool, scores, clock state,
+next-round / updated times) and re-run.
 
 Usage:  python3 screenshots/generate.py
 Needs:  `google-chrome` on PATH (override with $CHROME) and Pillow (`pip install pillow`).
@@ -145,10 +145,10 @@ def inner_height(html):
     return int(m.group(1)) if m else H
 
 
-def panel_rect(html):
-    """Bounding box of the overlay-hosted settings panel, probed like inner_height."""
+def panel_rect(html, sel):
+    """Bounding box of an overlay-hosted panel, probed like inner_height."""
     probe = ("<script>addEventListener('load',()=>setTimeout(()=>{"
-             "const r=document.querySelector('#settingsOverlay .sset').getBoundingClientRect();"
+             "const r=document.querySelector(" + json.dumps(sel) + ").getBoundingClientRect();"
              "document.title='PR'+JSON.stringify([r.left,r.top,r.right,r.bottom].map(Math.round))"
              "},600))</script>")
     with tempfile.TemporaryDirectory() as d:
@@ -215,7 +215,15 @@ def build_shots():
         # The operator's settings panel, over the same live round. The manual next-round
         # field stays empty on purpose — that's its designed state (see the hint).
         ("05-settings", harness(live, extra_js=settings_js(c_run))),
+        # The startup prompt shown when no tournament URL is configured. No mock data:
+        # this replaces the boot with the very call poll() makes on an empty targetUrl,
+        # so it's the real empty page, only without the network.
+        ("06-url-prompt", SRC.replace("</head>", HEAD_INJ + "</head>", 1).replace(BOOT, "showUrlPrompt();")),
     ]
+
+
+# Which overlay each shot is cropped to; the rest are full-width layout shots.
+PANEL_SEL = {"05-settings": "#settingsOverlay .sset", "06-url-prompt": "#urlPrompt .sset"}
 
 
 def main():
@@ -224,10 +232,10 @@ def main():
     print("layout viewport height:", crop_h)
     for name, html in shots:
         box = None
-        if name == "05-settings":
-            box = panel_rect(html)
+        if name in PANEL_SEL:
+            box = panel_rect(html, PANEL_SEL[name])
             if not box:
-                raise SystemExit("settings panel not found — the overlay didn't open")
+                raise SystemExit(name + ": " + PANEL_SEL[name] + " not found — the overlay didn't open")
         shoot(name, html, crop_h, box=box)
 
 

@@ -20,6 +20,12 @@ Configuration is by query string, so there are **no per-tournament copies of the
 screens are just links to one hosted copy with `?url=` set (singles `a61d1300…`, doubles `5de8f12a…`; both listed in
 the README). Deployed to `carrom.cz/dashboard/` by FTP.
 
+`CONFIG.targetUrl` **defaults to empty on purpose** — it used to hardcode the Eurocup singles GUID, which meant a
+bare launch silently showed someone else's tournament. With it empty, `poll()` opens `#urlPrompt` instead: an
+on-screen field for operators who don't want to hand-edit a query string. Submitting it sets `?url=` and reloads,
+so the address bar ends up identical to the typed form and the result is bookmarkable — which is why the prompt
+navigates rather than just assigning `CONFIG.targetUrl` in place. Baking a URL into `CONFIG` still skips both.
+
 A Chrome extension used to live here as a fallback for Anubis changes (it ran Anubis's own JS in a hidden tab), with
 the parsers in `src/*` as its source of truth and `dashboard.html` inlining ported copies. It was removed in July
 2026 — the in-page solver has been reliable, and two copies of the parsers were a maintenance tax. The inlined code
@@ -187,6 +193,12 @@ already scored (so "Round ended" holds until new pairings are drawn).
   dashboard's appearance — layout, header/clock, standings, matches, or the finals panel — **re-run
   `python3 screenshots/generate.py`** and commit the updated PNGs. The mock scenarios (player pool, scores, clock
   states, next-round/updated times) live in that script; edit them there, not by hand-editing images.
+  The clock-bearing shots embed a wall-clock-derived time, so a re-run rewrites them even with no UI change —
+  `git checkout` the ones that only drifted, so the diff shows real changes.
+  Overlay shots (settings, URL prompt) are cropped to their panel via `PANEL_SEL` + `panel_rect`; the settings one
+  stubs `window.open` so the panel takes its in-page fallback, since headless can't capture the detached popup.
+  **Injections into the page must use `.replace(…, 1)`** — `</head>` also appears inside `openSettings`' own
+  `document.write` string, and a probe carrying `</script>` injected there truncates the app's main script.
 - Never push without the user reviewing the diff. Deploying to `carrom.cz` is a manual FTP copy of the HTML files.
 
 ## Known limitations / TODO

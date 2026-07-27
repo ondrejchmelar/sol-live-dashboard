@@ -77,6 +77,15 @@ chrome.exe --disable-web-security --user-data-dir="%TEMP%\sol-dash" "file:///C:/
 It opens ("Waiting for SoL…"), solves Anubis in the page, and within a few seconds shows your tournament. Press
 <kbd>F11</kbd> for fullscreen once it's up. Exit with `Alt+F4` (or `Cmd+Q` on macOS).
 
+**Don't want to edit a query string?** Leave the `?url=…` part off and launch the bare file — the dashboard asks for
+the tournament address on screen and you can paste it in:
+
+<p align="center"><a href="screenshots/06-url-prompt.png" target="_blank" rel="noopener"><img src="screenshots/06-url-prompt.png" width="420" alt="The startup prompt asking for the tournament URL"></a></p>
+
+The address you paste ends up in the browser's own address bar, exactly as if you had typed the query string — so you
+can bookmark the running dashboard and skip this step next time. Everything else on this page still applies; the
+special Chrome launch above is what you can't skip.
+
 ---
 
 ## Options
@@ -84,7 +93,8 @@ It opens ("Waiting for SoL…"), solves Anubis in the page, and within a few sec
 Append these to the `?url=…` query string (`&` between them). That's the complete list — the dashboard reads no
 other parameters.
 
-- `url=<lit URL>` — the tournament from Step 1. The only one you normally need.
+- `url=<lit URL>` — the tournament from Step 1. The only one you normally need. Omit it and the dashboard asks for
+  the address on screen instead.
 - `poll=<seconds>` — how often to refresh (default `60`, minimum `30` — lower values are clamped).
 - `rounds=<N>` — total rounds, shown as "Round n / N" (Swiss events don't expose this; default `8`).
 - `idt=<idtourney>` — the integer timer id. Normally auto-detected while the round clock runs; only set this if the
@@ -266,7 +276,11 @@ fails to load, the default board icon is shown.
 - **Anubis.** The gate is solved in the page, and that works today — but Anubis is third-party anti-bot software, so
   an update to its puzzle could in principle break the solver. The symptom would be the dashboard sitting on
   "Reconnecting to SoL…" forever.
-- **Pre-round timer.** While a round is being *prepared*, SoL exposes no way to know how much break time remains, so
-  the header just says "Preparing the …round" without a countdown. A live clock appears once the round starts.
+- **Pre-round timer.** While a round is being *prepared*, SoL exposes no way to know how much break time remains:
+  the pre-round countdown runs entirely in the operator's own browser — the page simply counts down from the full
+  duration whenever it loads, and the server never learns when the break actually started. Any number the dashboard
+  showed would be fabricated, so the header just says "Preparing the …round" without a countdown; a live clock
+  appears once the round starts. Making that timer shareable would take a rewrite on SoL's side (a server-side
+  anchor for it), not something this dashboard can work around.
 - **Firefox is not supported** — it has no `--disable-web-security` equivalent.
 - This is an operator/display tool; players never install anything.

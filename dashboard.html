@@ -33,8 +33,9 @@
        • --user-data-dir is REQUIRED: Chrome ignores --disable-web-security on your
          normal profile. Use a fresh disposable dir.
        • Firefox has NO equivalent flag — use Chrome / Chromium / Edge / Brave.
-       • Configure the target either via the ?url= query param (above) or by
-         editing CONFIG.targetUrl below. Also supported: ?poll=<sec>&rounds=<N>&idt=<id>.
+       • Configure the target via the ?url= query param (above), or by editing
+         CONFIG.targetUrl below. With neither, the page asks for the URL on screen.
+         Also supported: ?poll=<sec>&rounds=<N>&idt=<id>.
        • COOKIE: after solving, Anubis sets `techaro.lol-anubis-auth`. Verified live
          (2026-07) that SoL issues it as SameSite=None; Secure, so it DOES ride
          along on our cross-site fetches under --disable-web-security — no extra
@@ -441,6 +442,12 @@ table.rank td.name{font-weight:400}
 <style id="setCss">
 #settingsOverlay{position:fixed;inset:0;background:rgba(11,30,51,.55);display:none;align-items:center;justify-content:center;z-index:60}
 #settingsOverlay.on{display:flex}
+/* Startup prompt for the tournament URL, shown when none is configured. Below the
+   settings overlay so Space can still open settings on top of it. */
+#urlPrompt{position:fixed;inset:0;background:rgba(11,30,51,.55);display:none;align-items:center;justify-content:center;z-index:55}
+#urlPrompt.on{display:flex}
+#urlPrompt .sset{box-shadow:0 12px 40px rgba(0,0,0,.35)}
+#urlPrompt .row{justify-content:flex-end}
 .sset{
   --s-line:#dfe6ef;--s-ink:#14233a;--s-muted:#5b6b80;--s-blue:#0d7ff2;--s-blue-ink:#275a88;
   font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
@@ -457,6 +464,7 @@ body>.sset{width:auto;border-radius:0}
 .sset label.col{flex-direction:column;align-items:stretch;gap:.35em}
 .sset textarea{font:inherit;padding:.6em;border:1px solid var(--s-line);border-radius:8px;resize:vertical;min-height:4.5em}
 .sset input[type=time],.sset input[type=number],.sset select{font:inherit;padding:.35em .5em;border:1px solid var(--s-line);border-radius:8px;background:#fff;color:inherit}
+.sset input[type=url]{font:inherit;padding:.6em;border:1px solid var(--s-line);border-radius:8px;background:#fff;color:inherit;width:100%;box-sizing:border-box}
 .sset select{max-width:60%}
 /* Club names are long ("European Carrom Confederation") — a stacked label gives the
    option text the full panel width instead of ellipsizing it. */
@@ -568,6 +576,25 @@ body>.sset{width:auto;border-radius:0}
 
 <!-- Fallback host for the settings form when the detached window is blocked. -->
 <div id="settingsOverlay"></div>
+
+<!-- Startup prompt when no tournament URL is configured (no ?url= and an empty
+     CONFIG.targetUrl) — for operators who don't speak query strings. Submitting
+     reloads the page with ?url= set, so the address bar ends up exactly as if it
+     had been typed, and the result can be bookmarked. -->
+<div id="urlPrompt">
+  <form class="sset" id="urlForm">
+    <h3>SoL Live Dashboard</h3>
+    <label class="col">Tournament page URL
+      <input type="url" id="urlInput" required spellcheck="false"
+             placeholder="https://sol5.metapensiero.it/lit/tourney/…">
+    </label>
+    <p class="hint">Open your tournament's public page on SoL and paste its address here.
+      It lands in this page's address bar, so you can bookmark the result to skip this step.</p>
+    <div class="row">
+      <button type="submit" class="primary">Show the tournament</button>
+    </div>
+  </form>
+</div>
 
 <div class="qrbox" id="qrBox" title="Click to hide">
   <div class="qrlabel">Results</div>
@@ -2891,8 +2918,10 @@ qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
    ============================================================================ */
 const Q = new URLSearchParams(location.search);
 const CONFIG = {
-  // The public SoL "lit" tournament page: /lit/tourney/<guid>
-  targetUrl: Q.get("url") || "https://sol5.metapensiero.it/lit/tourney/a61d130076e211f1b82f901b0edac7fa",
+  // The public SoL "lit" tournament page: /lit/tourney/<guid>. Left empty, boot shows
+  // an on-screen prompt for it instead of polling — bake a URL here (README option B)
+  // to skip both the query param and the prompt.
+  targetUrl: Q.get("url") || "",
   pollSeconds: Number(Q.get("poll")) || 60,
   // Swiss events don't expose a target round count — shown as "Round n / N".
   totalRounds: Q.get("rounds") ? Number(Q.get("rounds")) : 8,
@@ -3559,7 +3588,7 @@ async function poll(){
   polling = true;
   try {
     if (!CONFIG.targetUrl || /REPLACE_WITH_TOURNEY_GUID/.test(CONFIG.targetUrl)){
-      showEmpty({ state: "error", message: "Set CONFIG.targetUrl (or ?url=…) to your /lit/tourney/<guid> page." });
+      showUrlPrompt();
       return;
     }
 
@@ -4414,6 +4443,27 @@ function showEmpty(status){
   applyStatus(status);
   renderQR();
 }
+
+/* Startup prompt: with no tournament configured there is nothing to poll, so ask for
+   the URL on screen instead of pointing at CONFIG in a console-style message. The
+   input's type=url gives native "enter a URL" validation; submitting reloads with
+   ?url= set and every other query param kept, exactly as if it had been typed —
+   which also makes the result bookmarkable. */
+function showUrlPrompt(){
+  showEmpty({});
+  document.getElementById("eventName").textContent = "SoL Live Dashboard";
+  const p = document.getElementById("urlPrompt");
+  if (!p.classList.contains("on")){
+    p.classList.add("on");
+    document.getElementById("urlInput").focus();
+  }
+}
+document.getElementById("urlForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const q = new URLSearchParams(location.search);
+  q.set("url", document.getElementById("urlInput").value.trim());
+  location.search = q.toString();
+});
 
 /* ============================================================================
    8) BOOT
