@@ -7,6 +7,21 @@ players to install**. Point it at your tournament and put it on a TV.
 
 This README is about **getting it running for your own tournament**. For how the code works, see `CLAUDE.md`.
 
+## Screenshots
+
+<sub>Click any image for the full-size view.</sub>
+
+<table>
+<tr>
+<td width="50%"><a href="screenshots/01-players.png"><img src="screenshots/01-players.png" alt="Player list before the first round"></a><br><sub><b>Before the first round</b> — the registered players, until the first pairings are drawn.</sub></td>
+<td width="50%"><a href="screenshots/02-round-live.png"><img src="screenshots/02-round-live.png" alt="A round in progress"></a><br><sub><b>Round in progress</b> — live boards with scores, the round clock, and standings.</sub></td>
+</tr>
+<tr>
+<td width="50%"><a href="screenshots/03-round-prealarm.png"><img src="screenshots/03-round-prealarm.png" alt="Prealarm — no more new boards"></a><br><sub><b>Prealarm</b> — the clock turns amber: no more new boards, finish the ones on the table.</sub></td>
+<td width="50%"><a href="screenshots/04-final.png"><img src="screenshots/04-final.png" alt="Best-of-three final"></a><br><sub><b>Final</b> — a best-of-three shown as one panel: the series score and every game.</sub></td>
+</tr>
+</table>
+
 ---
 
 ## The one catch: it needs a special Chrome launch

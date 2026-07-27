@@ -134,6 +134,11 @@ already scored (so "Round ended" holds until new pairings are drawn).
   in place of the boot block, then screenshot with headless Chrome (`--headless=new --screenshot`, or `--dump-dom`
   reading `document.title` for computed-style probes).
 - After editing `standalone.html`, regenerate the two distributable copies and re-bake the doubles guid.
+- **README screenshots** (`screenshots/*.png`) are generated from mock data against the real `standalone.html` by
+  `screenshots/generate.py` (needs `google-chrome` + Pillow), so they stay truthful. Whenever a change alters the
+  dashboard's appearance — layout, header/clock, standings, matches, or the finals panel — **re-run
+  `python3 screenshots/generate.py`** and commit the updated PNGs. The mock scenarios (player pool, scores, clock
+  states, next-round/updated times) live in that script; edit them there, not by hand-editing images.
 - Never push without the user reviewing the diff. Deploying to `carrom.cz` is a manual FTP copy of the HTML files.
 
 ## Known limitations / TODO
