@@ -93,6 +93,21 @@ Example: `standalone.html?url=…/lit/tourney/<GUID>&poll=30&rounds=9`
 
 ---
 
+## Zoom (fitting the screen)
+
+The whole layout is sized in `rem`, so it scales as one piece. Browser zoom works, but its steps
+(67 / 75 / 80 / 90 / 100 / 110 %) are too coarse to dial in a particular screen, so the dashboard
+has its own **5 % zoom control**: move the mouse over the bottom bar and **− 100 % +** appears in
+the middle of it. Click the percentage to reset to 100 %. Keyboard: <kbd>-</kbd>, <kbd>+</kbd>,
+<kbd>0</kbd> (plain keys — <kbd>Ctrl</kbd>-combos still drive the browser's own zoom).
+
+The control is invisible until hovered, so nothing shows on an unattended corridor screen. The
+setting is remembered per browser profile, and zooming re-flows the layout the same way resizing
+does: zoom out and more match/standings columns fit, zoom in and the columns get wider (useful for
+long names) or drop to one.
+
+---
+
 ## Deployment options
 
 All three end with the **Step 3 launch** — hosting only changes *where the file lives*, not the need for the special

@@ -278,6 +278,7 @@ table.rank td.num{font-variant-numeric:tabular-nums;color:var(--muted)}
 
 /* ---------- Footer ---------- */
 footer.app{
+  position:relative;
   display:flex;flex-wrap:wrap;gap:clamp(.5rem,2vw,1.5rem);align-items:center;
   padding:clamp(.4rem,1vw,.7rem) clamp(.8rem,2vw,1.6rem);
   background:#0a3f78;color:#cfe0f5;font-size:clamp(.72rem,1.3vw,1rem);font-weight:600;
@@ -285,6 +286,27 @@ footer.app{
 footer.app .live{color:#fff;font-weight:800;text-transform:uppercase;letter-spacing:.08em}
 footer.app .live .statedot{background:var(--green);animation:blink 1.6s step-end infinite}
 footer.app .src{margin-left:auto;opacity:.75}
+
+/* Zoom control — centred in the footer, revealed only on hover so the corridor
+   screen (which never has a pointer on it) shows nothing. Absolutely positioned
+   so it centres on the footer itself, independent of the flex items around it. */
+.zoomctl{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  display:flex;align-items:center;gap:.5em;
+  opacity:0;pointer-events:none;transition:opacity .12s linear;
+}
+footer.app:hover .zoomctl,.zoomctl:focus-within{opacity:1;pointer-events:auto}
+.zoomctl button{
+  font:inherit;line-height:1;cursor:pointer;padding:0;
+  color:#fff;background:rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.35);border-radius:999px;
+}
+.zoomctl button:hover{background:rgba(255,255,255,.24)}
+.zoomctl .zbtn{width:2em;height:2em;font-weight:800;font-size:1.05em}
+.zoomctl .pct{
+  min-width:4em;height:2em;font-weight:700;font-variant-numeric:tabular-nums;
+  background:none;border-color:transparent;
+}
 
 /* ---------- Responsive: stack on phones ---------- */
 @media (max-width:780px){
@@ -449,6 +471,11 @@ table.rank td.name{font-weight:400}
 <footer class="app">
   <span class="live"><span class="statedot"></span>Live</span>
   <span id="updated"></span>
+  <div class="zoomctl">
+    <button type="button" class="zbtn" id="zoomOut" title="Zoom out (−)">−</button>
+    <button type="button" class="pct" id="zoomPct" title="Reset zoom to 100% (0)">100%</button>
+    <button type="button" class="zbtn" id="zoomIn" title="Zoom in (+)">+</button>
+  </div>
   <span class="src" id="dashstatus"></span>
 </footer>
 
@@ -3474,6 +3501,38 @@ const BREAK_KEY = "solDash.breakMin";
 let BREAK_MIN = 10;           // assumed break between rounds for the "next round ~" estimate
 try { BREAK_MIN = Math.max(0, Number(localStorage.getItem(BREAK_KEY))) || BREAK_MIN; } catch (e) {}
 
+/* Screen zoom (hover-only control in the footer). The browser's own zoom steps
+   (67/75/80/90/100/110…) are too coarse for dialling in a corridor screen, and no API
+   can drive it from the page — so we scale the rem base instead, which the whole layout
+   is built on. The px width thresholds below (MATCH_MIN_COL / STAND_MIN_COL /
+   STAND_PANEL_REM's rem→px conversion) and the autoscroll speed are scaled by the same
+   factor, so columns re-flow and rows drift exactly as under real browser zoom. */
+const ZOOM_KEY = "solDash.zoom";
+const ZOOM_BASE_PX = 20;      // must match html{font-size:20px}
+const ZOOM_STEP = 0.05, ZOOM_MIN = 0.5, ZOOM_MAX = 2;
+let ZOOM = 1;
+function clampZoom(z){
+  if (!Number.isFinite(z) || z <= 0) return 1;
+  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 100) / 100));
+}
+function applyZoom(){
+  document.documentElement.style.fontSize = (ZOOM_BASE_PX * ZOOM).toFixed(2) + "px";
+  const pct = document.getElementById("zoomPct");
+  if (pct) pct.textContent = Math.round(ZOOM * 100) + "%";
+}
+function setZoom(z){
+  const next = clampZoom(z);
+  if (next !== ZOOM){
+    ZOOM = next;
+    try { localStorage.setItem(ZOOM_KEY, String(ZOOM)); } catch (e) {}
+    applyZoom();
+    // Column counts are width-driven, so a zoom change has to re-flow both panels.
+    if (everRendered && DATA){ renderMatches(); renderStandings(); layoutPanels(); }
+  }
+}
+try { ZOOM = clampZoom(Number(localStorage.getItem(ZOOM_KEY))); } catch (e) {}
+applyZoom();
+
 /* Next-round estimate. auto = this round's end + BREAK_MIN (computed from the running
    clock and remembered after it ends); manual = operator override set by clicking the
    header time (lunch breaks). Both survive until a NEW clock starts. */
@@ -3625,7 +3684,7 @@ function attachAutoScroll(el){
     if (max <= 1){ if (written !== 0){ inner.style.transform = "translateY(0)"; written = 0; } pos = 0; dir = 1; pauseUntil = 0; return; }
     if (pos > max) pos = max;
     if (ts < pauseUntil) return;
-    pos += dir * SCROLL_SPEED * (dt / 1000);
+    pos += dir * SCROLL_SPEED * ZOOM * (dt / 1000);   // taller rows when zoomed in → same perceived speed
     if (pos >= max){ pos = max; dir = -1; pauseUntil = ts + SCROLL_PAUSE_MS; }
     else if (pos <= 0){ pos = 0; dir = 1; pauseUntil = ts + SCROLL_PAUSE_MS; }
     const next = Math.round(pos);
@@ -3710,8 +3769,8 @@ function showStandings(){
 // but no more than one column per ~6 boards so small rounds don't over-spread.
 function matchColumns(n){
   const t = eventType();
-  const avail = window.innerWidth - (showStandings() ? STAND_PANEL_REM[t] * 20 : 0); // minus the standings panel
-  return Math.max(1, Math.min(Math.ceil(n / 6), Math.floor(avail / MATCH_MIN_COL[t])));
+  const avail = window.innerWidth - (showStandings() ? STAND_PANEL_REM[t] * ZOOM_BASE_PX * ZOOM : 0); // minus the standings panel
+  return Math.max(1, Math.min(Math.ceil(n / 6), Math.floor(avail / (MATCH_MIN_COL[t] * ZOOM))));
 }
 
 function layoutPanels(){
@@ -3829,7 +3888,7 @@ function renderFinalPairing(p, f, top){
 // screen uses more columns. Capped so a column never gets absurdly short.
 // Column width per event type (see STAND_MIN_COL): ~7 singles / ~5 doubles columns at 4K.
 function standingsCols(n){
-  const byWidth = Math.floor(window.innerWidth / STAND_MIN_COL[eventType()]);
+  const byWidth = Math.floor(window.innerWidth / (STAND_MIN_COL[eventType()] * ZOOM));
   // Only split off another column once each would still hold >=10 rows — avoid
   // slicing a tiny field (e.g. 5 pairs) into skimpy columns.
   return Math.max(1, Math.min(byWidth, Math.floor(n / 10)));
@@ -4017,6 +4076,18 @@ document.getElementById("roundsSave").addEventListener("click", () => applyRound
 document.getElementById("roundsClear").addEventListener("click", () => applyRoundsEditor(true));
 document.getElementById("roundsEditor").addEventListener("click", e => { if (e.target.id === "roundsEditor") closeRoundsEditor(); });
 addEventListener("keydown", e => { if (e.key === "Escape"){ closeMsgEditor(); closeNextEditor(); closeRoundsEditor(); } });
+document.getElementById("zoomOut").addEventListener("click", () => setZoom(ZOOM - ZOOM_STEP));
+document.getElementById("zoomIn").addEventListener("click", () => setZoom(ZOOM + ZOOM_STEP));
+document.getElementById("zoomPct").addEventListener("click", () => setZoom(1));
+// Bare +/-/0 mirror the footer buttons; Ctrl/Cmd combos are left to the browser's own zoom.
+addEventListener("keydown", e => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const t = e.target;
+  if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
+  if (e.key === "+" || e.key === "=") setZoom(ZOOM + ZOOM_STEP);
+  else if (e.key === "-" || e.key === "_") setZoom(ZOOM - ZOOM_STEP);
+  else if (e.key === "0") setZoom(1);
+});
 poll();
 setInterval(poll, Math.max(30, CONFIG.pollSeconds) * 1000);
 

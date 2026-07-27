@@ -113,6 +113,12 @@ already scored (so "Round ended" holds until new pairings are drawn).
   All three are tuned so the longest expected names fit unclipped at 4K — singles "WEERAWARNAKULA Haritha" (368px at
   the 1.35rem font cap), doubles "BANKOVIC Aleksandar/PAVLOVIC Aleksandar" (596px); longer names may ellipsize.
   Fonts rem-based (`html{font-size:20px}`) so browser zoom scales everything.
+- **Zoom** (standalone only; the extension dashboard doesn't have it): browser zoom's steps are too coarse for a
+  corridor screen and can't be driven from JS, so the footer carries a hover-only `− 100% +` control (`.zoomctl`,
+  absolutely centred; `setZoom`/`applyZoom`) that scales the **rem base** in 5% steps, 50–200%, persisted in
+  `solDash.zoom`. Because the px width thresholds are *not* rem, `matchColumns`, `standingsCols` and the
+  `STAND_PANEL_REM`→px conversion multiply by `ZOOM` (and autoscroll by `ZOOM`, so drift stays perceptually equal) —
+  keep any new px-based width threshold scaled the same way, or it won't re-flow when zoomed.
 - **Names:** surname bold caps, first name regular; doubles on one slash-separated line, ellipsis-truncated.
 - **Clock states:** running → "In progress"; prealarm; over → "Round ended" in red, holds until new pairings are
   drawn; ready → "Round prepared". `prepare`/`pre` show only a header label, **no timer bar**.
