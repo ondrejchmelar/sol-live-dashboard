@@ -376,6 +376,36 @@ table.rank td.name{font-weight:400}
 
 /* Doubles: long slash-joined names must shrink & ellipsize inside narrow columns */
 .match .side .names{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ===== Finals (best-of-N) panel ===== */
+.finals{display:flex;flex-direction:column;gap:1.1rem;padding:1.1rem}
+.final-match{border:2px solid var(--gold);border-radius:16px;padding:1.1rem 1.3rem;
+  background:linear-gradient(180deg,rgba(232,176,10,.10),rgba(232,176,10,0))}
+.final-match.top{border-width:3px}
+.final-match.decided{background:linear-gradient(180deg,rgba(0,189,57,.12),rgba(0,189,57,0));border-color:var(--green)}
+.final-match .frank{font-size:.95rem;font-weight:800;text-transform:uppercase;letter-spacing:.09em;
+  color:var(--gold);margin-bottom:.6rem}
+.final-match.decided .frank{color:var(--green)}
+/* Teams stacked vertically around the series score — centred, full-width lines so long
+   doubles names don't collide with the score (they ellipsize only in the extreme). */
+.final-match .fteams{display:flex;flex-direction:column;align-items:center;gap:.35rem;text-align:center}
+.final-match .fteam{font-size:1.6rem;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.final-match .fteam.win{color:var(--green)}
+.final-match .fteam .crown{font-size:1.1rem;margin-left:.35rem}
+.final-match .fseries{font-size:2.6rem;font-weight:800;color:var(--muted);white-space:nowrap;
+  font-variant-numeric:tabular-nums;line-height:1.05}
+.final-match .fseries .win{color:var(--green)}
+.final-match .fseries .dash{margin:0 .35rem;opacity:.45}
+.final-match .fgames{display:flex;gap:.9rem;margin-top:1.1rem}
+.final-match .fgame{flex:1 1 0;min-width:0;border:1px solid var(--line);border-radius:12px;padding:.7rem .5rem;
+  text-align:center;background:var(--panel)}
+.final-match .fgame.pending{opacity:.4}
+.final-match .fgame.live{border-color:var(--green);box-shadow:0 0 0 2px rgba(0,189,57,.22)}
+.final-match .fgame .fgl{font-size:.82rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--muted);margin-bottom:.35rem;display:flex;align-items:center;justify-content:center;gap:.35rem}
+.final-match .fgame .fgs{font-size:2rem;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
+.final-match .fgame .fgs .sep{margin:0 .3rem;opacity:.4}
+.final-match .fgame.awin .fgs .a,.final-match .fgame.bwin .fgs .b{color:var(--green)}
 </style>
 </head>
 <body>
@@ -2954,6 +2984,7 @@ function parseTourney(html){
   const idtourney = extractIdTourney(doc);
   const preCountdown = extractPreCountdown(doc);
   const currentTurn = detectCurrentTurn(doc);
+  const final = parseFinalInfo(doc);
 
   if (!table){
     // Before the first round there is no ranking table yet — still surface the prep timer.
@@ -2962,6 +2993,7 @@ function parseTourney(html){
     t.preCountdown = preCountdown;
     t.currentTurn = currentTurn;
     t.details = details;
+    t.final = final;
     return t;
   }
 
@@ -2988,8 +3020,8 @@ function parseTourney(html){
 
   return {
     status: "ok", tournament, type, currentTurn,
-    totalRounds: null, prized, idtourney, preCountdown, headers, rankIndex, playerIndex, details, standings,
-    _diag: { tablesFound, rowsParsed: standings.length, idtourney, currentTurn, prized, type },
+    totalRounds: null, prized, idtourney, preCountdown, final, headers, rankIndex, playerIndex, details, standings,
+    _diag: { tablesFound, rowsParsed: standings.length, idtourney, currentTurn, prized, type, final },
   };
 }
 
@@ -3114,6 +3146,37 @@ function parseDetails(doc){
   return out;
 }
 
+// The "Final" definition row (present once a final is configured) tells us the final
+// kind and where it starts, e.g.:
+//   <td>Final</td><td><a href="…?turn=6">1st/2nd place, Best of three games</a></td>
+// We read: the raw text, the number of games (best-of-N → N, single game → 1), and the
+// first final turn from the link. Returns null when there is no final configured.
+function parseFinalInfo(doc){
+  for (const t of doc.querySelectorAll("table.definition")){
+    for (const tr of t.querySelectorAll("tr")){
+      const tds = tr.querySelectorAll("td");
+      if (tds.length >= 2 && normalize(tds[0].textContent) === "final"){
+        const text = cleanText(tds[1].textContent);
+        const a = tds[1].querySelector('a[href*="turn="]');
+        let firstTurn = null;
+        if (a){ const m = (a.getAttribute("href") || "").match(/turn=(\d+)/); if (m) firstTurn = Number(m[1]); }
+        // The kind is the last comma-separated segment ("… , Best of three games").
+        const kindLabel = text.split(",").pop().trim() || text;
+        return { text, kindLabel, firstTurn, games: bestOfCount(kindLabel) };
+      }
+    }
+  }
+  return null;
+}
+// "Best of three games" → 3; "Best of 5 games" → 5; anything else (single game) → 1.
+function bestOfCount(text){
+  const m = /best of\s+([\w]+)/i.exec(text || "");
+  if (!m) return 1;
+  const words = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, nine: 9 };
+  const w = m[1].toLowerCase();
+  return words[w] || Number(w) || 1;
+}
+
 function isAnubis(doc){
   const t = (doc.title + " " + (doc.body?.textContent || "")).slice(0, 2000).toLowerCase();
   return /anubis|not a bot|proof[- ]of[- ]work/.test(t) && !doc.querySelector("table");
@@ -3122,7 +3185,7 @@ function isAnubis(doc){
 function emptyTourney(status, tournament, tablesFound){
   return {
     status, tournament, type: "singles", currentTurn: null, totalRounds: null,
-    prized: false, idtourney: null, preCountdown: null, headers: [], rankIndex: 0, playerIndex: 1,
+    prized: false, idtourney: null, preCountdown: null, final: null, headers: [], rankIndex: 0, playerIndex: 1,
     details: {}, standings: [], _diag: { tablesFound },
   };
 }
@@ -3155,6 +3218,61 @@ function parseCountdown(html){
   const startedAtISO = new Date(Date.now() - elapsedMs).toISOString();
   const over = elapsedMs >= durationMin * 60 * 1000;
   return { mode: over ? "over" : "running", durationMin, prealarmMin, startedAtISO, elapsedSec: Math.round(elapsedMs / 1000) };
+}
+
+/* ============================================================================
+   4b) buildFinals — assemble a best-of-N final from its per-game turns.
+   Each final game lives on its own SoL turn (firstTurn, firstTurn+1, …). SoL only
+   creates the next game's turn once the previous one is played, so `gameTurns` holds
+   just the games that exist so far; the rest render as "pending". Boards are grouped
+   into pairings (1st/2nd, 3rd/4th, …) by the set of player names, which is stable even
+   when SoL swaps who breaks between games. A/B orientation is fixed from the first game.
+   ============================================================================ */
+function buildFinals(rank, gameTurns){
+  const games = rank.final.games;
+  const firstTurn = rank.final.firstTurn;
+  const nameKey = (arr) => (arr || []).map((s) => s.toLowerCase()).sort().join("|");
+  const boardKey = (b) => [...(b.side1 || []), ...(b.side2 || [])].map((s) => s.toLowerCase()).sort().join("|");
+
+  const byKey = new Map();
+  for (const gt of gameTurns){
+    for (const b of gt.matches){
+      if (b.phantom) continue;
+      const key = boardKey(b);
+      if (!byKey.has(key)){
+        byKey.set(key, { a: b.side1, b: b.side2, aKey: nameKey(b.side1), rank: b.board, games: [], wins: { a: 0, b: 0 } });
+      }
+    }
+  }
+  for (const gt of gameTurns){
+    for (const b of gt.matches){
+      if (b.phantom) continue;
+      const p = byKey.get(boardKey(b));
+      // Orient this board's scores onto the canonical A/B set by name overlap.
+      const sameAsA = (b.side1 || []).some((s) => p.aKey.split("|").includes(s.toLowerCase()));
+      const sa = sameAsA ? b.score1 : b.score2;
+      const sb = sameAsA ? b.score2 : b.score1;
+      const finished = b.finished;
+      const winner = finished ? (sa > sb ? 1 : sb > sa ? 2 : 0) : 0;
+      p.games[gt.game - 1] = { a: sa, b: sb, finished, live: !finished, winner };
+      if (winner === 1) p.wins.a++;
+      else if (winner === 2) p.wins.b++;
+    }
+  }
+
+  const need = Math.floor(games / 2) + 1;   // game-wins needed to take the series
+  const pairings = [...byKey.values()].sort((x, y) => x.rank - y.rank).map((p) => {
+    const gs = [];
+    for (let i = 0; i < games; i++) gs.push(p.games[i] || { pending: true });
+    const winnerSide = p.wins.a >= need ? "a" : p.wins.b >= need ? "b" : null;
+    return { a: p.a, b: p.b, rank: p.rank, games: gs, wins: p.wins, decided: !!winnerSide, winnerSide };
+  });
+
+  return {
+    kindLabel: rank.final.kindLabel, games, need, firstTurn,
+    currentGame: Math.min(games, rank.currentTurn - firstTurn + 1),
+    pairings,
+  };
 }
 
 /* ============================================================================
@@ -3269,9 +3387,35 @@ async function poll(){
       } catch (e) { console.warn("[turn] fetch/parse failed:", e); }
     }
 
-    // 3) Countdown / timer. The running-round clock (/tourney/countdown).
+    // 2b) Finals: a best-of-N final spans several turns (one per game). Fetch every
+    // final turn that exists so far (firstTurn..currentTurn) and assemble the series;
+    // future games render as "pending". Shown even once the tourney is prized — a decided
+    // final is exactly what we want on screen (with the winner marked), not a bare ranking.
+    let finals = null;
+    if (rank.final && rank.final.firstTurn != null && rank.currentTurn != null &&
+        rank.currentTurn >= rank.final.firstTurn){
+      const lastTurn = Math.min(rank.currentTurn, rank.final.firstTurn + rank.final.games - 1);
+      const gameTurns = [];
+      for (let t = rank.final.firstTurn; t <= lastTurn; t++){
+        let boards = [];
+        if (t === rank.currentTurn){
+          boards = matches;   // already fetched above
+        } else {
+          try {
+            const tr = await fetchTarget(withTurn(CONFIG.targetUrl, t));
+            if (tr.ok && !tr.anubis) boards = parseMatches(tr.html);
+          } catch (e) { console.warn("[final turn " + t + "] fetch/parse failed:", e); }
+        }
+        gameTurns.push({ turn: t, game: t - rank.final.firstTurn + 1, matches: boards });
+      }
+      if (gameTurns.some((g) => g.matches.length)) finals = buildFinals(rank, gameTurns);
+    }
+
+    // 3) Countdown / timer. The running-round clock (/tourney/countdown). Skipped during
+    // the final — final matches usually have no time limit, and any clock isn't meaningful,
+    // so we hide the timer bar there (no clock → buildCorridor yields no timer, state "idle").
     let clock = null;
-    if (idt){
+    if (idt && !finals){
       try {
         const cdU = new URL("/tourney/countdown", CONFIG.targetUrl);
         cdU.searchParams.set("idtourney", idt);
@@ -3283,6 +3427,7 @@ async function poll(){
 
     // 4) Assemble + render.
     const data = buildCorridor(rank, matches, clock);
+    data.finals = finals;
     data.sourceUrl = CONFIG.targetUrl;
     data.idtourney = idt;
     if (TOTAL_ROUNDS) data.event.totalRounds = TOTAL_ROUNDS;
@@ -3342,7 +3487,9 @@ function saveNext(){ NEXT.savedMs = Date.now(); try { localStorage.setItem(NEXT_
 
 function renderNextRound(){
   const aux = document.getElementById("clockAux");
-  if (!DATA || DATA.state === "final"){ aux.innerHTML = ""; return; }
+  // No "next round" during the final results or while the final is being played — its
+  // games are consecutive turns of the same match, not rounds with a break between them.
+  if (!DATA || DATA.state === "final" || DATA.finals){ aux.innerHTML = ""; return; }
   let inner = "";
   if (NEXT.manual) inner = "<b>" + esc(NEXT.manual) + "</b>";
   else if (NEXT.endMs) inner = "<b>~" + hhmm(round5(new Date(NEXT.endMs + BREAK_MIN * 60000))) + "</b>";
@@ -3489,6 +3636,13 @@ function attachAutoScroll(el){
 function topStatus(d){
   const r = d.event.currentRound, tot = d.event.totalRounds;
   const rnd = r == null ? "" : (tot != null ? "Round " + r + " / " + tot : "Round " + r);
+  if (d.finals){
+    // No clock during the final, so read progress from the games themselves.
+    const anyLive = d.finals.pairings.some((p) => p.games.some((g) => g.live));
+    const allDecided = d.finals.pairings.length > 0 && d.finals.pairings.every((p) => p.decided);
+    const suffix = allDecided ? " · decided" : anyLive ? " · in progress" : "";
+    return "Final · game " + d.finals.currentGame + " of " + d.finals.games + suffix;
+  }
   switch (d.state){
     case "final":    return "Final results";
     case "running":  return rnd + " · in progress";
@@ -3561,18 +3715,25 @@ function matchColumns(n){
 
 function layoutPanels(){
   const list = DATA.matches || [];
-  const hasMatches = list.length > 0;
-  const cols = matchColumns(list.length);
+  const isFinals = !!DATA.finals;
+  const hasMatches = isFinals || list.length > 0;
   const m = document.getElementById("matchesPanel");
   const s = document.getElementById("standingsPanel");
   const main = document.querySelector("main");
   const showS = showStandings();
   s.style.display = showS ? "" : "none";
   m.style.display = hasMatches ? "" : "none";
-  main.style.gridTemplateColumns = hasMatches && showS ? (cols + "fr " + STAND_PANEL_REM[eventType()] + "rem") : "1fr";
+  if (isFinals){
+    // The finals panel is a single fixed-layout column; give standings its usual share.
+    main.style.gridTemplateColumns = showS ? ("1fr " + STAND_PANEL_REM[eventType()] + "rem") : "1fr";
+  } else {
+    const cols = matchColumns(list.length);
+    main.style.gridTemplateColumns = hasMatches && showS ? (cols + "fr " + STAND_PANEL_REM[eventType()] + "rem") : "1fr";
+  }
 }
 
 function renderMatches(){
+  if (DATA.finals){ renderFinals(); return; }
   const list = DATA.matches || [];
   const body = document.getElementById("matchesBody");
   const teamLabel = DATA.event.type === "doubles" ? "Team" : "Player";
@@ -3614,6 +3775,52 @@ function renderMatchRow(m){
         '<div class="side' + (s2win ? " win" : "") + '">' + names(m.side2) + '<span class="sc">' + m.score2 + "</span></div>" +
       "</div>" +
       '<div class="badges">' + badge + "</div>" +
+    "</div>";
+}
+
+// Ordinal for placement labels: 1 -> "1st", 2 -> "2nd", 3 -> "3rd", 4 -> "4th", …
+function ordinal(n){
+  const s = ["th", "st", "nd", "rd"], v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+// A pairing's contested places from its board rank: rank 1 -> "1st / 2nd place", 2 -> "3rd / 4th place".
+function placementLabel(rank){
+  const hi = rank * 2 - 1;
+  return ordinal(hi) + " / " + ordinal(hi + 1) + " place";
+}
+
+// Finals panel: for each pairing (usually just 1st/2nd) show the two sides, the series
+// score (games won), and a card per game — the played ones with their board score, the
+// live game pulsing, and not-yet-played games dimmed as "pending".
+function renderFinals(){
+  const f = DATA.finals;
+  document.getElementById("matchesTitle").textContent = "Final";
+  document.getElementById("matchesPg").textContent = f.kindLabel;
+  const html = f.pairings.map((p, i) => renderFinalPairing(p, f, i === 0)).join("");
+  document.getElementById("matchesBody").innerHTML = '<div class="finals">' + html + "</div>";
+}
+
+function renderFinalPairing(p, f, top){
+  const aWon = p.winnerSide === "a", bWon = p.winnerSide === "b";
+  const gamesHtml = p.games.map((g, i) => {
+    if (g.pending) return '<div class="fgame pending"><div class="fgl">Game ' + (i + 1) + "</div><div class=\"fgs\">—</div></div>";
+    const cls = "fgame " + (g.live ? "live" : "done") +
+      (g.finished && g.winner === 1 ? " awin" : g.finished && g.winner === 2 ? " bwin" : "");
+    const label = (g.live ? '<span class="statedot"></span>' : "") + "Game " + (i + 1);
+    return '<div class="' + cls + '"><div class="fgl">' + label + "</div>" +
+      '<div class="fgs"><span class="a">' + g.a + '</span><span class="sep">–</span><span class="b">' + g.b + "</span></div></div>";
+  }).join("");
+  // Only label the contested places when there are several finals (1st/2nd, 3rd/4th, …);
+  // with a single final the "1st / 2nd place" tag is redundant.
+  const rankLabel = f.pairings.length > 1 ? '<div class="frank">' + placementLabel(p.rank) + "</div>" : "";
+  return '<div class="final-match' + (top ? " top" : "") + (p.decided ? " decided" : "") + '">' +
+      rankLabel +
+      '<div class="fteams">' +
+        '<div class="fteam' + (aWon ? " win" : "") + '">' + names(p.a) + (aWon ? '<span class="crown">🏆</span>' : "") + "</div>" +
+        '<div class="fseries"><span class="' + (aWon ? "win" : "") + '">' + p.wins.a + '</span><span class="dash">–</span><span class="' + (bWon ? "win" : "") + '">' + p.wins.b + "</span></div>" +
+        '<div class="fteam' + (bWon ? " win" : "") + '">' + names(p.b) + (bWon ? '<span class="crown">🏆</span>' : "") + "</div>" +
+      "</div>" +
+      '<div class="fgames">' + gamesHtml + "</div>" +
     "</div>";
 }
 
