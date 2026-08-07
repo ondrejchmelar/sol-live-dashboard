@@ -3194,6 +3194,26 @@ function parseTourney(html){
   };
 }
 
+// SoL's matches_row() (lit/tourney.mako) renders each match as TWO <tr>: the first
+// carries the board/rank cell (rowspan=2) plus competitor1 — its name and its score
+// share the class "competitor1" (name cell has the <a>, score cell is "right aligned").
+// The second <tr> mirrors that for competitor2, or is a lone ".phantom" pair on a bye.
+// A running/not-yet-started match shows the live partial score, flagged by
+// "partial-score" on the score cell (not on the <tr> — only the training-boards
+// layout still does that).
+function extractMatchSide(row, cls){
+  if (!row) return { name: "", score: "", partial: false };
+  const cells = [...row.querySelectorAll("." + cls)];
+  if (!cells.length) return { name: "", score: "", partial: false };
+  const nameCell = cells.find((c) => c.querySelector("a")) || cells[0];
+  const scoreCell = cells.find((c) => c !== nameCell) || nameCell;
+  return {
+    name: cleanText(nameCell.textContent),
+    score: cleanText(scoreCell.textContent),
+    partial: scoreCell.classList.contains("partial-score"),
+  };
+}
+
 function parseMatches(html){
   const doc = new DOMParser().parseFromString(html, "text/html");
   if (isAnubis(doc)) return [];
@@ -3204,45 +3224,41 @@ function parseMatches(html){
   const bodyRows = [...table.querySelectorAll("tbody tr")];
   const rows = bodyRows.length ? bodyRows : [...table.querySelectorAll("tr")].slice(1);
 
-  return rows
-    .map((tr, i) => {
-      const pick = (sel) => { const el = tr.querySelector(sel); return el ? cleanText(el.textContent) : ""; };
-      let c1 = pick(".competitor1, .player1, td.competitor1, th.competitor1");
-      let c2 = pick(".competitor2, .player2, td.competitor2, th.competitor2");
-      let s1 = pick(".score1");
-      let s2 = pick(".score2");
+  const matches = [];
+  for (let i = 0; i < rows.length; i += 2){
+    const r1 = rows[i];
+    const r2 = rows[i + 1] || null;
 
-      if (!c1 && !c2){
-        const cells = [...tr.querySelectorAll("td, th")].map((c) => cleanText(c.textContent));
-        const namesArr = cells.filter((v) => /[a-zčďěňřšťůžá-ž]/i.test(v) && !/^\d+$/.test(v));
-        const nums = cells.filter((v) => /^-?\d+$/.test(v));
-        c1 = namesArr[0] || "";
-        c2 = namesArr[1] || "";
-        if (s1 === "") s1 = nums[0] ?? "";
-        if (s2 === "") s2 = nums[1] ?? "";
-      }
+    const side1 = extractMatchSide(r1, "competitor1");
+    const phantomCells = r2 ? [...r2.querySelectorAll(".phantom")] : [];
+    const side2 = phantomCells.length
+      ? { name: "", score: cleanText(phantomCells[phantomCells.length - 1].textContent), partial: false }
+      : extractMatchSide(r2, "competitor2");
 
-      if (!c1 && !c2) return null;
-      const boardTxt = pick(".round-number, .board, td.round-number");
-      const board = num(boardTxt) ?? i + 1;
-      const n1 = num(s1);
-      const n2 = num(s2);
-      const isPartial = tr.classList && tr.classList.contains("partial-score");
-      const hasScores = n1 != null && n2 != null;
-      const finished = !isPartial && hasScores;
-      const phantom = /phantom|^—|\bbye\b/i.test(c1 + " " + c2) || !c1 || !c2;
-      return {
-        board,
-        side1: splitNamesParse(c1),
-        side2: splitNamesParse(c2),
-        score1: n1 != null ? n1 : 0,
-        score2: n2 != null ? n2 : 0,
-        finished,
-        winner: finished ? (n1 > n2 ? 1 : n2 > n1 ? 2 : 0) : 0,
-        phantom,
-      };
-    })
-    .filter(Boolean);
+    const c1 = side1.name;
+    const c2 = side2.name;
+    if (!c1 && !c2) continue;
+
+    const rankCell = r1.querySelector(".rank");
+    const board = num(rankCell ? cleanText(rankCell.textContent) : "") ?? (i / 2 + 1);
+    const n1 = num(side1.score);
+    const n2 = num(side2.score);
+    const isPartial = side1.partial || side2.partial;
+    const hasScores = n1 != null && n2 != null;
+    const finished = !isPartial && hasScores;
+    const phantom = /phantom|^—|\bbye\b/i.test(c1 + " " + c2) || !c1 || !c2;
+    matches.push({
+      board,
+      side1: splitNamesParse(c1),
+      side2: splitNamesParse(c2),
+      score1: n1 != null ? n1 : 0,
+      score2: n2 != null ? n2 : 0,
+      finished,
+      winner: finished ? (n1 > n2 ? 1 : n2 > n1 ? 2 : 0) : 0,
+      phantom,
+    });
+  }
+  return matches;
 }
 
 function pickRankingTable(doc){

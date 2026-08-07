@@ -85,9 +85,20 @@ google-chrome --disable-web-security --user-data-dir="/tmp/sol-dash" \
   assume PNG and never assume a sane aspect ratio; that's why the header emblem has an operator off-switch.
 
 ### Matches table (`table.matches`, `?turn=N`)
-- **`<tr class="partial-score">` = the match is NOT final** (covers 0:0 not-started and a running QR score). Its
-  **absence = finalized** — this is the authoritative "finished" signal; rely on the class, not the score value.
-- `.winner` on a competitor cell / score span marks the leader on finalized matches. Board number = the `td.rank` cell.
+- **August 2026 restructure** (verified against a live turn export, "24th Carrom Eurocup Singles"): each match is now
+  **two `<tr>`**, not one. The first carries `td.rank[rowspan=2]` (the board/match number — despite the name, this
+  is *not* a player ranking) plus competitor1; the second carries competitor2, or a lone `td.phantom`/`td.phantom`
+  pair on a bye. Confirmed against upstream (`gitlab.com/metapensiero/SoL`, `src/sol/views/lit/tourney.mako`,
+  `matches_row()`).
+- Competitor **name and score share one class** (`competitor1`/`competitor2`) across two `<td>`s in the same `<tr>` —
+  the one containing an `<a>` is the name, the other (`right aligned`) is the score. Pick by presence of `<a>`, not
+  position.
+- **The finished signal moved from the `<tr>` to the score `<td>`**: `td.competitor1.partial-score` /
+  `td.competitor2.partial-score` (both, since they share one `scored` flag server-side) = match NOT final — covers
+  not-started and a running live score (upstream substitutes `partial_score1`/`partial_score2` for the shown value
+  when unscored, so the number is real, not always 0). Its absence = finalized. `tr.partial-score` is now only used
+  by the separate "training boards" championship layout — don't key off it for the standard singles/doubles table.
+- `.winner` on a competitor cell / score cell marks the leader on finalized matches.
 
 ### Countdown page (`/tourney/countdown?idtourney=N`)
 Inline `<body onload>`: `new Countdown('c1', <durationMin>, <prealarmMin>, <elapsedMs>|false, <isowner>)`.
