@@ -486,6 +486,7 @@ body>.sset{width:auto;border-radius:0}
 .sset .zrow{display:flex;align-items:center;gap:.5em}
 .sset .zrow output{min-width:3.6em;text-align:center;font-variant-numeric:tabular-nums}
 .sset .zrow button{width:2em;height:2em;padding:0;font-weight:800}
+.sset #setColsPct{cursor:pointer}
 .sset hr{border:0;border-top:1px solid var(--s-line);margin:.1em 0;width:100%}
 .sset .row{display:flex;align-items:center;gap:.6em;margin-top:.2em}
 .sset .row .note{margin-right:auto;font-size:.85em;font-weight:700;color:#00bd39;opacity:0;transition:opacity .12s linear}
@@ -567,6 +568,13 @@ body>.sset{width:auto;border-radius:0}
         <button type="button" id="setZoomOut" title="Zoom out">−</button>
         <output id="setZoomPct">100%</output>
         <button type="button" id="setZoomIn" title="Zoom in">+</button>
+      </span>
+    </label>
+    <label>Columns
+      <span class="zrow">
+        <button type="button" id="setColsOut" title="Fewer columns">−</button>
+        <output id="setColsPct" title="Click to reset to automatic">Auto</output>
+        <button type="button" id="setColsIn" title="More columns">+</button>
       </span>
     </label>
     <label>Show QR code <input type="checkbox" id="setQr"></label>
@@ -4029,12 +4037,16 @@ function mountSettings(doc, root){
   // operator can watch the big screen while nudging them. Text fields wait for Apply.
   $("setZoomOut").addEventListener("click", () => setZoom(ZOOM - ZOOM_STEP));
   $("setZoomIn").addEventListener("click", () => setZoom(ZOOM + ZOOM_STEP));
+  $("setColsOut").addEventListener("click", () => adjustCols(-1));
+  $("setColsIn").addEventListener("click", () => adjustCols(1));
+  $("setColsPct").addEventListener("click", () => setColsOverride(null));
   $("setQr").addEventListener("change", (e) => setQRVisible(e.target.checked));
   $("setEmblem").addEventListener("change", (e) => { setEmblemMode(e.target.value); syncEmblemUI(); });
   syncEmblemUI();
   $("setApply").addEventListener("click", applySettings);
   $("setClose").addEventListener("click", closeSettings);
   syncZoomReadout();
+  syncColsReadout();
   $("setMsg").focus();
 }
 
@@ -4042,6 +4054,12 @@ function syncZoomReadout(){
   const doc = settingsHost();
   const out = doc && doc.getElementById("setZoomPct");
   if (out) out.textContent = Math.round(ZOOM * 100) + "%";
+}
+
+function syncColsReadout(){
+  const doc = settingsHost();
+  const out = doc && doc.getElementById("setColsPct");
+  if (out) out.textContent = COLS_OVERRIDE != null ? String(COLS_OVERRIDE) : "Auto";
 }
 
 // The QR auto-hides from round 3 on, so re-ticking the box after that has to force it
@@ -4225,6 +4243,7 @@ function setColsOverride(next){
     if (COLS_OVERRIDE == null) localStorage.removeItem(COLS_KEY);
     else localStorage.setItem(COLS_KEY, String(COLS_OVERRIDE));
   } catch (e) {}
+  syncColsReadout();   // the settings panel's own readout, when it's open
   // Column counts drive both grids' markup, not just their CSS widths, so re-render.
   if (everRendered && DATA){ renderMatches(); renderStandings(); layoutPanels(); }
 }

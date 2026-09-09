@@ -144,11 +144,12 @@ already scored (so "Round ended" holds until new pairings are drawn).
   All three are tuned so the longest expected names fit unclipped at 4K — singles "WEERAWARNAKULA Haritha" (368px at
   the 1.35rem font cap), doubles "BANKOVIC Aleksandar/PAVLOVIC Aleksandar" (596px); longer names may ellipsize.
   Fonts rem-based (`html{font-size:20px}`) so browser zoom scales everything.
-  `[`/`]`/`\` let an operator step or reset a manual `COLS_OVERRIDE` (`solDash.cols`, 1–10) on top of this
-  auto-fit — `matchColumns`/`standingsCols` return it verbatim when set, falling back to the renamed
-  `autoMatchColumns`/`autoStandingsCols` otherwise. It has no effect on the finals panel (always one column) and,
-  like `ZOOM`, triggers `renderMatches`/`renderStandings`/`layoutPanels` on change since column count reshapes the
-  markup, not just CSS.
+  `[`/`]`/`\` (and the settings panel's own **Columns** −/Auto/+ row, `#setColsOut`/`#setColsPct`/`#setColsIn`, wired
+  straight to `adjustCols`/`setColsOverride`) let an operator step or reset a manual `COLS_OVERRIDE`
+  (`solDash.cols`, 1–10) on top of this auto-fit — `matchColumns`/`standingsCols` return it verbatim when set,
+  falling back to the renamed `autoMatchColumns`/`autoStandingsCols` otherwise. It has no effect on the finals
+  panel (always one column) and, like `ZOOM`, triggers `renderMatches`/`renderStandings`/`layoutPanels` and its
+  own readout sync (`syncColsReadout`, mirroring `syncZoomReadout`) on change.
 - **Header emblem:** `resolveEmblem()` resolves **both** clubs — `EMBLEM.host` (the "Hosted by"
   organiser) and `EMBLEM.owner` (the championship club, free from the tourney page's own `#emblem`, so still just
   **one** fetch, for the host). Fires after the first render and must never block or delay it. Cached per tournament
@@ -162,7 +163,7 @@ already scored (so "Round ended" holds until new pairings are drawn).
   single-emblem build has `{src,title,tried:true}`, and matching on URL alone made `resolveEmblem` skip forever and
   strand the header on the board icon. Any future change to the cached shape needs the same guard.
 - **Settings panel:** the **single** editor for every operator setting — message, next-round time,
-  break, total rounds, zoom, QR toggle, emblem toggle. Four ways in, all `openSettings()`: the logo (`#logoBtn`, gear badge on
+  break, total rounds, zoom, columns, QR toggle, emblem toggle. Four ways in, all `openSettings()`: the logo (`#logoBtn`, gear badge on
   hover), the Space key, the clock's next-round block, and the "Round n / N" subtitle. There are deliberately **no
   per-setting dialogs any more**; don't reintroduce one. It opens in a **detached `window.open`** so the operator can
   drag it off the projector and type unseen, falling back to `#settingsOverlay` when the popup is blocked — so every

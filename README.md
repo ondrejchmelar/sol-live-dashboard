@@ -138,11 +138,12 @@ popup, the same panel falls back to an in-page dialog:
 | **Break between rounds** | Feeds that automatic estimate. |
 | **Total rounds** | The "/ N" in "Round n / N". Swiss events don't publish this. Empty hides it. |
 | **Screen zoom** | Same 5 % steps as the footer control below. |
+| **Columns** | Same override as the <kbd>[</kbd> / <kbd>]</kbd> keys below — click **Auto** to reset it. |
 | **Show QR code** | Hides the QR now, or forces it back after its round-3 auto-hide. |
 | **Header emblem** | Which club's emblem to show, or none — see below. |
 
-Text fields apply on **Apply**; zoom and the QR toggle take effect immediately, so you can nudge
-them while watching the big screen.
+Text fields apply on **Apply**; zoom, columns, and the QR toggle take effect immediately, so you
+can nudge them while watching the big screen.
 
 Three ways in, all opening the same panel: the **logo**, the <kbd>Space</kbd> key, or clicking the
 part of the header you want to change — the **next-round time** or the **"Round n / N"** subtitle.
