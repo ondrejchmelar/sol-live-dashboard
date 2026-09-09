@@ -138,7 +138,7 @@ popup, the same panel falls back to an in-page dialog:
 | **Break between rounds** | Feeds that automatic estimate. |
 | **Total rounds** | The "/ N" in "Round n / N". Swiss events don't publish this. Empty hides it. |
 | **Screen zoom** | Same 5 % steps as the hover-only zoom control in the bottom bar — see [Zoom](#zoom-fitting-the-screen). |
-| **Columns** | Same override as the <kbd>[</kbd> / <kbd>]</kbd> keys below — click **Auto** to reset it. |
+| **Columns** | Same override as the <kbd>[</kbd> / <kbd>]</kbd> keys — see [Keyboard shortcuts](#keyboard-shortcuts). Click **Auto** to reset it. |
 | **Show QR code** | Hides the QR now, or forces it back after its round-3 auto-hide. |
 | **Header emblem** | Which club's emblem to show, or none — see [Host association logo](#host-association-logo). |
 
@@ -175,7 +175,7 @@ remembered per browser profile until you reset it, and has no effect on the fina
 which is always a single column.
 
 There's no keyboard shortcut for scrolling — use the mouse wheel or touch drag instead, see
-[Scrolling](#scrolling) below.
+[Scrolling](#scrolling).
 
 ---
 
