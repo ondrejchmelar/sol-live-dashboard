@@ -163,8 +163,15 @@ zoom and fullscreen shortcuts still work alongside these.
 | <kbd>+</kbd> / <kbd>=</kbd> | Zoom in 5 % |
 | <kbd>-</kbd> / <kbd>_</kbd> | Zoom out 5 % |
 | <kbd>0</kbd> | Reset zoom to 100 % |
+| <kbd>[</kbd> | One fewer column (matches, or the pre-round player list) |
+| <kbd>]</kbd> | One more column |
+| <kbd>\\</kbd> | Reset columns to automatic |
 | <kbd>F11</kbd> | Toggle the browser's own fullscreen |
-| <kbd>Alt</kbd>+<kbd>F4</kbd> (Windows/Linux) / <kbd>Cmd</kbd>+<kbd>Q</kbd> (macOS) | Quit the browser |
+
+The column keys override the automatic, width-driven column count — useful for widening
+columns for readability, or narrowing them to fit more boards at a glance. The override is
+remembered per browser profile until you reset it, and has no effect on the finals panel,
+which is always a single column.
 
 There's no keyboard shortcut for scrolling — use the mouse wheel or touch drag instead, see
 [Scrolling](#scrolling) below.

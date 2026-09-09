@@ -144,6 +144,11 @@ already scored (so "Round ended" holds until new pairings are drawn).
   All three are tuned so the longest expected names fit unclipped at 4K — singles "WEERAWARNAKULA Haritha" (368px at
   the 1.35rem font cap), doubles "BANKOVIC Aleksandar/PAVLOVIC Aleksandar" (596px); longer names may ellipsize.
   Fonts rem-based (`html{font-size:20px}`) so browser zoom scales everything.
+  `[`/`]`/`\` let an operator step or reset a manual `COLS_OVERRIDE` (`solDash.cols`, 1–10) on top of this
+  auto-fit — `matchColumns`/`standingsCols` return it verbatim when set, falling back to the renamed
+  `autoMatchColumns`/`autoStandingsCols` otherwise. It has no effect on the finals panel (always one column) and,
+  like `ZOOM`, triggers `renderMatches`/`renderStandings`/`layoutPanels` on change since column count reshapes the
+  markup, not just CSS.
 - **Header emblem:** `resolveEmblem()` resolves **both** clubs — `EMBLEM.host` (the "Hosted by"
   organiser) and `EMBLEM.owner` (the championship club, free from the tourney page's own `#emblem`, so still just
   **one** fetch, for the host). Fires after the first render and must never block or delay it. Cached per tournament
