@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Regenerate the README screenshots from mock data against the real dashboard.html.
 
-The six shots (pre-round player list, a live round, the prealarm warning, a best-of-three
-final, the settings panel, and the startup URL prompt) are rendered from the mock
-scenarios below through the *actual* `dashboard.html` render path — so they stay truthful
-whenever the UI changes. Edit the scenarios here (player pool, scores, clock state,
-next-round / updated times) and re-run.
+The six shots (pre-round player list, a live round with a message-to-players banner, the
+prealarm warning, a best-of-three final, the settings panel, and the startup URL prompt) are
+rendered from the mock scenarios below through the *actual* `dashboard.html` render path — so
+they stay truthful whenever the UI changes. Edit the scenarios here (player pool, scores,
+clock state, next-round / updated times) and re-run.
 
 Usage:  python3 screenshots/generate.py
 Needs:  `google-chrome` on PATH (override with $CHROME) and Pillow (`pip install pillow`).
@@ -111,6 +111,11 @@ EMBLEM_SVG = ("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' v
               "<circle cx='45' cy='45' r='3' fill='%23f7f4ec'/></svg>")
 
 
+# Shown on both the live-round shot (the banner itself) and the settings shot (which
+# pre-fills the textarea from the same ticker state) — one message, two views of it.
+MESSAGE = "Please clear your boards promptly — lunch follows this round."
+
+
 def settings_js(clk):
     """Open the settings panel over the live-round backdrop, every field populated the
     way a real tournament populates it: the next-round hint fed from the running clock,
@@ -125,7 +130,7 @@ def settings_js(clk):
         + "owner:{src:" + json.dumps(EMBLEM_SVG) + ",title:'European Carrom Confederation'},"
         + "hostName:'Czech Carrom Association',ownerName:'European Carrom Confederation'};"
         + "applyLogo();"
-        + "setMessage('Please clear your boards promptly — lunch follows this round.');"
+        + "setMessage(" + json.dumps(MESSAGE) + ");"
         + "openSettings();"
     )
 
@@ -203,7 +208,10 @@ def build_shots():
         ("01-players", harness(
             {"event": event(None), "clock": None, "matches": [], "standings": standings(PLAYERS, played=False),
              "state": "pre", "updatedISO": "2026-07-18T06:50:00Z"}, next_manual="9:00")),
-        ("02-round-live", harness(live, next_manual="~13:30", next_iso=c_run["startedAtISO"])),
+        # extra_js sets the announcement bar so this, the main "round in progress" shot,
+        # also shows what a message to players looks like on screen.
+        ("02-round-live", harness(live, next_manual="~13:30", next_iso=c_run["startedAtISO"],
+                                   extra_js="setMessage(" + json.dumps(MESSAGE) + ");")),
         ("03-round-prealarm", harness(
             {"event": event(6), "clock": c_pre, "matches": matches(30, 0.82), "standings": standings(PLAYERS),
              "state": "running", "updatedISO": "2026-07-18T11:18:00Z"}, next_manual="~13:30", next_iso=c_pre["startedAtISO"])),

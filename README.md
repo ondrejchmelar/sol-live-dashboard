@@ -14,7 +14,7 @@ This README is about **getting it running for your own tournament**. For how the
 <table>
 <tr>
 <td width="50%"><a href="screenshots/01-players.png" target="_blank" rel="noopener"><img src="screenshots/01-players.png" alt="Player list before the first round"></a><br><sub><b>Before the first round</b> — the registered players, until the first pairings are drawn.</sub></td>
-<td width="50%"><a href="screenshots/02-round-live.png" target="_blank" rel="noopener"><img src="screenshots/02-round-live.png" alt="A round in progress"></a><br><sub><b>Round in progress</b> — live boards with scores, the round clock, and standings.</sub></td>
+<td width="50%"><a href="screenshots/02-round-live.png" target="_blank" rel="noopener"><img src="screenshots/02-round-live.png" alt="A round in progress, with a message-to-players banner"></a><br><sub><b>Round in progress</b> — live boards with scores, the round clock, standings, and a message-to-players banner.</sub></td>
 </tr>
 <tr>
 <td width="50%"><a href="screenshots/03-round-prealarm.png" target="_blank" rel="noopener"><img src="screenshots/03-round-prealarm.png" alt="Prealarm — no more new boards"></a><br><sub><b>Prealarm</b> — the clock turns amber: no more new boards, finish the ones on the table.</sub></td>
@@ -147,6 +147,27 @@ them while watching the big screen.
 Three ways in, all opening the same panel: the **logo**, the <kbd>Space</kbd> key, or clicking the
 part of the header you want to change — the **next-round time** or the **"Round n / N"** subtitle.
 <kbd>Esc</kbd> closes it.
+
+---
+
+## Keyboard shortcuts
+
+All of these are plain keys, active anywhere on the dashboard except while typing in a settings
+field. <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>-combos are deliberately left alone, so the browser's own
+zoom and fullscreen shortcuts still work alongside these.
+
+| Key | Effect |
+| --- | --- |
+| <kbd>Space</kbd> | Open the settings panel (same as clicking the logo) |
+| <kbd>Esc</kbd> | Close the settings panel |
+| <kbd>+</kbd> / <kbd>=</kbd> | Zoom in 5 % |
+| <kbd>-</kbd> / <kbd>_</kbd> | Zoom out 5 % |
+| <kbd>0</kbd> | Reset zoom to 100 % |
+| <kbd>F11</kbd> | Toggle the browser's own fullscreen |
+| <kbd>Alt</kbd>+<kbd>F4</kbd> (Windows/Linux) / <kbd>Cmd</kbd>+<kbd>Q</kbd> (macOS) | Quit the browser |
+
+There's no keyboard shortcut for scrolling — use the mouse wheel or touch drag instead, see
+[Scrolling](#scrolling) below.
 
 ---
 
